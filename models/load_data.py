@@ -1,0 +1,180 @@
+import pandas as pd
+import numpy as np
+from sklearn.preprocessing import MultiLabelBinarizer, LabelBinarizer
+
+mlb = MultiLabelBinarizer(sparse_output=True)
+lb = LabelBinarizer()
+
+
+def calculate_ads_time(df):
+    ads_mask = df.loc[:, "event_type"] == "ADVERTISEMENT"
+    ads_time = np.timedelta64(0)
+    for _, action in df.loc[ads_mask].iterrows():
+        difference = action.next_timestamp - action.timestamp
+        if difference < np.timedelta64(0):
+            pass
+        ads_time += difference
+    return ads_time
+
+
+class Preprocessor:
+    def __init__(self, data_paths):
+        # suggested usage: data_paths = ["users.json", "tracks.json", "artists.json", "sessions.json"]
+        users_path, tracks_path, artists_path, sessions_path, *_ = data_paths
+        self.users_df = pd.read_json(users_path)
+        self.tracks_df = pd.read_json(tracks_path)
+        self.artists_df = pd.read_json(artists_path)
+        self.sessions_df = pd.read_json(sessions_path)
+        self.df = self.users_df  # TODO: idk if this isn't just a copy
+
+    def cut_off_after_buy_premium(self):
+        sessions_filtered = pd.DataFrame()
+        for user_id, user_actions in self.sessions_df.groupby("user_id"):
+            user_bought_premium = False
+
+            for session_id, session in user_actions.groupby("session_id"):
+                if user_bought_premium:
+                    break
+                session.sort_values(by=["timestamp"])
+                premium_bought_mask = session.loc[:, "event_type"] == "BUY_PREMIUM"
+                bought_premium_in_session = premium_bought_mask.any()
+
+                if bought_premium_in_session:
+                    time_of_buy_premium = session.loc[
+                        premium_bought_mask
+                    ].timestamp.iloc[0]
+                    session = session.loc[
+                        session.loc[:, "timestamp"] <= time_of_buy_premium
+                    ]
+                    user_bought_premium = True
+
+                sessions_filtered = pd.concat([sessions_filtered, session])
+        return sessions_filtered
+
+    # TODO maybe move to a test
+    def check_cut_off(self):
+        # sessions_df rows containing BUY_PREMIUM events
+        bought_premium_mask = self.sessions_df.loc[:, "event_type"] == "BUY_PREMIUM"
+        bought_premium = self.sessions_df[bought_premium_mask]
+        # list of all premium users
+        premium_users = bought_premium[["user_id"]].values.T.tolist()[0]
+        # this we test
+        cut_off_df = self.cut_off_after_buy_premium()
+
+        # iterate
+        for user_id, user_sessions in cut_off_df.groupby("user_id"):
+            if user_id in premium_users:
+                assert user_sessions.iloc[-1]["event_type"] == "BUY_PREMIUM"
+
+    def calculate_ads_time(self, df):
+        ads_mask = df.loc[:, "event_type"] == "ADVERTISEMENT"
+        ads_time = np.timedelta64(0)
+        for _, action in df.loc[ads_mask].iterrows():
+            difference = action.next_timestamp - action.timestamp
+            if difference < np.timedelta64(0):
+                pass
+            ads_time += difference
+        return ads_time
+
+    def get_adds_time_df(self):
+        time_comparison_df = pd.DataFrame()
+
+        for user_id, user_actions in self.sessions_df.groupby("user_id"):
+            user_ads_time = np.timedelta64(0)
+            user_all_time = np.timedelta64(0)
+
+            for session_id, session in user_actions.groupby("session_id"):
+                # sanity sort - should be sorted by now anyways
+                session.sort_values(by=["timestamp"])
+                user_all_time += (
+                    session.iloc[-1, session.columns.get_loc("timestamp")]
+                    - session.iloc[0, session.columns.get_loc("timestamp")]
+                )
+                # TODO maybe investigate this chain warning a bit more instead of supressing:
+                # https://towardsdatascience.com/how-to-suppress-settingwithcopywarning-in-pandas-c0c759bd0f10
+                pd.options.mode.chained_assignment = None
+                session.loc[:, "next_timestamp"] = session.loc[:, "timestamp"].shift(
+                    -1, fill_value=session.loc[:, "timestamp"].max()
+                )
+
+                user_ads_time += self.calculate_ads_time(session)
+
+            session_times_df = pd.DataFrame(
+                {
+                    "all_time": user_all_time / np.timedelta64(1, "s"),
+                    "ads_time": user_ads_time / np.timedelta64(1, "s"),
+                },
+                index=[user_id],
+            )
+            time_comparison_df = pd.concat([time_comparison_df, session_times_df])
+        return time_comparison_df
+
+    #####
+
+    def get_event_type_count_df(self):
+        all_events_counts = (
+            self.sessions_df.groupby("user_id")
+            .size()
+            .reset_index(name="all_events_count")
+        )
+        event_type_count = (
+            self.sessions_df.groupby(["user_id", "event_type"])
+            .size()
+            .unstack(fill_value=0)
+            .reset_index()
+        )
+        event_type_count = event_type_count.merge(all_events_counts, on="user_id")
+        event_types = ["user_id"] + [
+            "event_type_" + col for col in event_type_count.columns[1:-1]
+        ]
+        event_type_count.columns = event_types + ["all_events_count"]
+        for col in event_types[1:]:
+            event_type_count[col] = (
+                event_type_count[col] / event_type_count["all_events_count"]
+            )
+        event_type_count.drop("event_type_BUY_PREMIUM", axis="columns", inplace=True)
+        event_type_count.drop("all_events_count", axis="columns", inplace=True)
+        return event_type_count
+
+    def run(self):
+        # one hot encoding
+        self.df = self.df.join(
+            pd.DataFrame.sparse.from_spmatrix(
+                mlb.fit_transform(self.df.pop("favourite_genres")),
+                index=self.df.index,
+                columns=mlb.classes_,
+            )
+        )
+
+        self.df = self.df.join(
+            pd.DataFrame(
+                lb.fit_transform(self.df.pop("city")),
+                index=self.df.index,
+                columns=lb.classes_,
+            )
+        )
+
+        self.sessions_df = self.cut_off_after_buy_premium()
+
+        time_comparison_df = self.get_adds_time_df()
+        self.df = self.df.join(
+            pd.DataFrame(
+                data=time_comparison_df.loc[:, "ads_time"]
+                / time_comparison_df.loc[:, "all_time"],
+                columns=["Ads_ratio"],
+            ),
+            on="user_id",
+        )
+
+        event_type_count_df = self.get_event_type_count_df()
+        self.df = pd.merge(self.df, event_type_count_df, on=["user_id"])
+
+        return self.df
+
+
+data_paths = ["users.json", "tracks.json", "artists.json", "sessions.json"]
+preprocessor = Preprocessor(data_paths)
+# print(preprocessor.cut_off_after_buy_premium().columns)
+df = preprocessor.run()
+print(df.columns)
+print(df["Ads_ratio"])
