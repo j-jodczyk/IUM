@@ -3,8 +3,6 @@ import datetime
 
 
 class Session(BaseModel):
-    EVENT_TYPES = ["ADVERTISEMENT", "LIKE", "PLAY", "SKIP"]
-
     timestamp: datetime.datetime
     user_id: int
     track_id: str

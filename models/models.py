@@ -19,3 +19,7 @@ class Model:
     def predict(self, X_test):
         y_hat = self.model.predict(X_test)
         return y_hat
+
+    def save_to_file(self):
+        # TODO
+        pass

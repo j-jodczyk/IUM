@@ -65,7 +65,8 @@ class Preprocessor:
             if user_id in premium_users:
                 assert user_sessions.iloc[-1]["event_type"] == "BUY_PREMIUM"
 
-    def calculate_ads_time(self, df):
+    @staticmethod
+    def calculate_ads_time(df):
         ads_mask = df.loc[:, "event_type"] == "ADVERTISEMENT"
         ads_time = np.timedelta64(0)
         for _, action in df.loc[ads_mask].iterrows():
@@ -75,10 +76,8 @@ class Preprocessor:
             ads_time += difference
         return ads_time
 
-    def get_adds_time_df(self, sessions_df=None):
-        if sessions_df is None:
-            sessions_df = self.sessions_df
-
+    @staticmethod
+    def get_adds_time_df(sessions_df):
         time_comparison_df = pd.DataFrame()
 
         for user_id, user_actions in sessions_df.groupby("user_id"):
@@ -99,7 +98,7 @@ class Preprocessor:
                     -1, fill_value=session.loc[:, "timestamp"].max()
                 )
 
-                user_ads_time += self.calculate_ads_time(session)
+                user_ads_time += Preprocessor.calculate_ads_time(session)
 
             session_times_df = pd.DataFrame(
                 {
@@ -111,8 +110,7 @@ class Preprocessor:
             time_comparison_df = pd.concat([time_comparison_df, session_times_df])
         return time_comparison_df
 
-    # TODO refector if time - better structure
-    def get_ads_after_fav_ratio_df(self):
+    def get_merged_dfs(self):
         all_df = self.users_df[["user_id", "favourite_genres"]].merge(
             self.sessions_df, on="user_id"
         )
@@ -124,9 +122,17 @@ class Preprocessor:
         )
 
         all_df["genres"] = all_df["genres"].fillna("").apply(list)
+        return all_df
+
+    # TODO refector if time - better structure
+    def get_ads_after_fav_ratio_df(self):
+        all_df = self.get_merged_dfs()
         all_df["fav_genre_track"] = all_df.apply(
             lambda row: list(set(row["favourite_genres"]) & set(row["genres"])), axis=1
         )
+
+        # TODO: do the rest inside sessions:
+
         all_df["prev_event"] = all_df["event_type"].shift()
         all_df["prev_fav_genre_track"] = all_df["fav_genre_track"].shift()
 
@@ -193,7 +199,8 @@ class Preprocessor:
 
         self.sessions_df = self.cut_off_after_buy_premium()
 
-        time_comparison_df = self.get_adds_time_df()
+        # Unify naming "adds" and "ads"
+        time_comparison_df = Preprocessor.get_adds_time_df(self.seesion_df)
         self.df = self.df.join(
             pd.DataFrame(
                 data=time_comparison_df.loc[:, "ads_time"]
