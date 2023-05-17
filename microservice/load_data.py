@@ -6,26 +6,25 @@ mlb = MultiLabelBinarizer(sparse_output=True)
 lb = LabelBinarizer()
 
 
-def calculate_ads_time(df):
-    ads_mask = df.loc[:, "event_type"] == "ADVERTISEMENT"
-    ads_time = np.timedelta64(0)
-    for _, action in df.loc[ads_mask].iterrows():
-        difference = action.next_timestamp - action.timestamp
-        if difference < np.timedelta64(0):
-            pass
-        ads_time += difference
-    return ads_time
-
-
 class Preprocessor:
-    def __init__(self, data_paths):
+    def __init__(self, data_paths=None):
         # suggested usage: data_paths = ["users.json", "tracks.json", "artists.json", "sessions.json"]
-        users_path, tracks_path, artists_path, sessions_path, *_ = data_paths
-        self.users_df = pd.read_json(users_path)
-        self.tracks_df = pd.read_json(tracks_path)
-        self.artists_df = pd.read_json(artists_path)
-        self.sessions_df = pd.read_json(sessions_path)
-        self.df = self.users_df  # TODO: idk if this isn't just a copy
+        if data_paths:
+            users_path, tracks_path, artists_path, sessions_path, *_ = data_paths
+            self.users_df = pd.read_json(users_path)
+            self.tracks_df = pd.read_json(tracks_path)
+            self.artists_df = pd.read_json(artists_path)
+            self.sessions_df = pd.read_json(sessions_path)
+
+            self.tracks_df.rename(columns={"id": "track_id"}, inplace=True)
+            self.artists_df.rename(columns={"id": "id_artist"}, inplace=True)
+        else:
+            self.users_df = pd.DataFrame()
+            self.tracks_df = pd.DataFrame()
+            self.artists_df = pd.DataFrame()
+            self.sessions_df = pd.DataFrame()
+
+        self.df = self.users_df
 
     def cut_off_after_buy_premium(self):
         sessions_filtered = pd.DataFrame()
@@ -76,10 +75,13 @@ class Preprocessor:
             ads_time += difference
         return ads_time
 
-    def get_adds_time_df(self):
+    def get_adds_time_df(self, sessions_df=None):
+        if sessions_df is None:
+            sessions_df = self.sessions_df
+
         time_comparison_df = pd.DataFrame()
 
-        for user_id, user_actions in self.sessions_df.groupby("user_id"):
+        for user_id, user_actions in sessions_df.groupby("user_id"):
             user_ads_time = np.timedelta64(0)
             user_all_time = np.timedelta64(0)
 
@@ -109,7 +111,51 @@ class Preprocessor:
             time_comparison_df = pd.concat([time_comparison_df, session_times_df])
         return time_comparison_df
 
-    #####
+    # TODO refector if time - better structure
+    def get_ads_after_fav_ratio_df(self):
+        all_df = self.users_df[["user_id", "favourite_genres"]].merge(
+            self.sessions_df, on="user_id"
+        )
+        all_df = all_df.merge(
+            self.tracks_df[["track_id", "id_artist"]], on="track_id", how="left"
+        )
+        all_df = all_df.merge(
+            self.artists_df[["id_artist", "genres"]], on="id_artist", how="left"
+        )
+
+        all_df["genres"] = all_df["genres"].fillna("").apply(list)
+        all_df["fav_genre_track"] = all_df.apply(
+            lambda row: list(set(row["favourite_genres"]) & set(row["genres"])), axis=1
+        )
+        all_df["prev_event"] = all_df["event_type"].shift()
+        all_df["prev_fav_genre_track"] = all_df["fav_genre_track"].shift()
+
+        ad_counts = all_df["event_type"].eq("ADVERTISEMENT")
+        adds_after_fav_counts = (
+            all_df[ad_counts & all_df["prev_fav_genre_track"].apply(lambda x: x != [])]
+            .groupby("user_id")
+            .size()
+            .rename("adds_after_fav_count")
+        )
+        all_adds_counts = (
+            all_df[ad_counts].groupby("user_id").size().rename("all_adds_count")
+        )
+
+        final_df = pd.DataFrame(
+            {
+                "adds_after_fav_count": adds_after_fav_counts,
+                "all_adds_count": all_adds_counts,
+            }
+        ).reset_index()
+        final_df["adds_after_fav_ratio"] = (
+            final_df["adds_after_fav_count"] / final_df["all_adds_count"]
+        )
+        final_df["adds_after_fav_ratio"] = final_df["adds_after_fav_ratio"].fillna(
+            0.0
+        )  # Replace NaN values with 0.0
+        final_df = final_df[["user_id", "adds_after_fav_ratio"]]
+
+        return final_df
 
     def get_event_type_count_df(self):
         all_events_counts = (
@@ -137,15 +183,6 @@ class Preprocessor:
         return event_type_count
 
     def run(self):
-        # one hot encoding
-        self.df = self.df.join(
-            pd.DataFrame.sparse.from_spmatrix(
-                mlb.fit_transform(self.df.pop("favourite_genres")),
-                index=self.df.index,
-                columns=mlb.classes_,
-            )
-        )
-
         self.df = self.df.join(
             pd.DataFrame(
                 lb.fit_transform(self.df.pop("city")),
@@ -169,12 +206,16 @@ class Preprocessor:
         event_type_count_df = self.get_event_type_count_df()
         self.df = pd.merge(self.df, event_type_count_df, on=["user_id"])
 
+        adds_after_fav_ratio_df = self.get_ads_after_fav_ratio_df()
+        self.df = pd.merge(self.df, adds_after_fav_ratio_df, on=["user_id"])
+
+        # one hot encoding
+        self.df = self.df.join(
+            pd.DataFrame.sparse.from_spmatrix(
+                mlb.fit_transform(self.df.pop("favourite_genres")),
+                index=self.df.index,
+                columns=mlb.classes_,
+            )
+        )
+
         return self.df
-
-
-data_paths = ["users.json", "tracks.json", "artists.json", "sessions.json"]
-preprocessor = Preprocessor(data_paths)
-# print(preprocessor.cut_off_after_buy_premium().columns)
-df = preprocessor.run()
-print(df.columns)
-print(df["Ads_ratio"])
