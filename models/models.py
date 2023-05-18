@@ -23,3 +23,8 @@ class Model:
     def save_to_file(self):
         # TODO
         pass
+
+
+class NaiveModel:
+    def predict(self, input_data):
+        return [1]
