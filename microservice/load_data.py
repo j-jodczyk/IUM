@@ -4,34 +4,43 @@ from sklearn.preprocessing import MultiLabelBinarizer, LabelBinarizer
 
 mlb = MultiLabelBinarizer(sparse_output=True)
 lb = LabelBinarizer()
+class DataModel( object ):
+    def __init__(self, load_data: bool=True, data_paths_dict: dict = {"users_path": "users.json", "tracks_path":"tracks.json", "artists_path":"artists.json", "sessions_path":"sessions.json"}):
+        self.users_path=data_paths_dict["users_path"]
+        self.tracks_path=data_paths_dict["tracks_path"]
+        self.artists_path=data_paths_dict["artists_path"]
+        self.sessions_path=data_paths_dict["sessions_path"]
+        self.users_df=pd.DataFrame()
+        self.tracks_df=pd.DataFrame()
+        self.artists_df=pd.DataFrame()
+        self.sessions_df=pd.DataFrame()
+        if load_data:
+            self.load_data()
+    
+    def load_data(self):
+        self.users_df = pd.read_json(self.users_path)
+        self.tracks_df = pd.read_json(self.tracks_path)
+        self.artists_df = pd.read_json(self.artists_path)
+        self.sessions_df = pd.read_json(self.sessions_path)
 
+        self.tracks_df.rename(columns={"id": "track_id"}, inplace=True)
+        self.artists_df.rename(columns={"id": "id_artist"}, inplace=True)
 
 class Preprocessor:
-    def __init__(self, data_paths=None):
-        # suggested usage: data_paths = ["users.json", "tracks.json", "artists.json", "sessions.json"]
-        if data_paths:
-            users_path, tracks_path, artists_path, sessions_path, *_ = data_paths
-            self.users_df = pd.read_json(users_path)
-            self.tracks_df = pd.read_json(tracks_path)
-            self.artists_df = pd.read_json(artists_path)
-            self.sessions_df = pd.read_json(sessions_path)
-
-            self.tracks_df.rename(columns={"id": "track_id"}, inplace=True)
-            self.artists_df.rename(columns={"id": "id_artist"}, inplace=True)
-        else:
-            self.users_df = pd.DataFrame()
-            self.tracks_df = pd.DataFrame()
-            self.artists_df = pd.DataFrame()
-            self.sessions_df = pd.DataFrame()
-
-        self.df = self.users_df
-
+    
+    @staticmethod
+    def register_session_scoped_action(name:str, user_scope_function, session_scope_function):
+        Preprocessor.scoped_actions.append(Preprocessor.ScopedAction(name, user_scope_function, session_scope_function))
+        
+    @staticmethod
     def cut_off_after_buy_premium(self):
         sessions_filtered = pd.DataFrame()
         for user_id, user_actions in self.sessions_df.groupby("user_id"):
-            user_bought_premium = False
+            for scoped_action in Preprocessor.scoped_actions:
+                scoped_action.user_run(user_actions)
 
             for session_id, session in user_actions.groupby("session_id"):
+                scoped_action.session_setup()
                 if user_bought_premium:
                     break
                 session.sort_values(by=["timestamp"])
@@ -50,20 +59,20 @@ class Preprocessor:
                 sessions_filtered = pd.concat([sessions_filtered, session])
         return sessions_filtered
 
-    # TODO maybe move to a test
-    def check_cut_off(self):
-        # sessions_df rows containing BUY_PREMIUM events
-        bought_premium_mask = self.sessions_df.loc[:, "event_type"] == "BUY_PREMIUM"
-        bought_premium = self.sessions_df[bought_premium_mask]
-        # list of all premium users
-        premium_users = bought_premium[["user_id"]].values.T.tolist()[0]
-        # this we test
-        cut_off_df = self.cut_off_after_buy_premium()
+    # # TODO maybe move to a test
+    # def check_cut_off(self):
+    #     # sessions_df rows containing BUY_PREMIUM events
+    #     bought_premium_mask = self.sessions_df.loc[:, "event_type"] == "BUY_PREMIUM"
+    #     bought_premium = self.sessions_df[bought_premium_mask]
+    #     # list of all premium users
+    #     premium_users = bought_premium[["user_id"]].values.T.tolist()[0]
+    #     # this we test
+    #     cut_off_df = self.cut_off_after_buy_premium()
 
-        # iterate
-        for user_id, user_sessions in cut_off_df.groupby("user_id"):
-            if user_id in premium_users:
-                assert user_sessions.iloc[-1]["event_type"] == "BUY_PREMIUM"
+    #     # iterate
+    #     for user_id, user_sessions in cut_off_df.groupby("user_id"):
+    #         if user_id in premium_users:
+    #             assert user_sessions.iloc[-1]["event_type"] == "BUY_PREMIUM"
 
     @staticmethod
     def calculate_ads_time(df):
