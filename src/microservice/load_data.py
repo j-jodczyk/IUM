@@ -2,10 +2,12 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MultiLabelBinarizer, LabelBinarizer
 
+from src.microservice.scoped_action import ScopedAction, CutOffAfterPremium
+
 mlb = MultiLabelBinarizer(sparse_output=True)
 lb = LabelBinarizer()
 class DataModel( object ):
-    def __init__(self, load_data: bool=True, data_paths_dict: dict = {"users_path": "users.json", "tracks_path":"tracks.json", "artists_path":"artists.json", "sessions_path":"sessions.json"}):
+    def __init__(self, load_data: bool=True, data_paths_dict: dict = {"../data/users_path": "users.json", "../data/tracks_path":"tracks.json", "../data/artists_path":"artists.json", "../data/sessions_path":"sessions.json"}):
         self.users_path=data_paths_dict["users_path"]
         self.tracks_path=data_paths_dict["tracks_path"]
         self.artists_path=data_paths_dict["artists_path"]
@@ -26,53 +28,32 @@ class DataModel( object ):
         self.tracks_df.rename(columns={"id": "track_id"}, inplace=True)
         self.artists_df.rename(columns={"id": "id_artist"}, inplace=True)
 
+
 class Preprocessor:
+    # @staticmethod
+    # def register_session_scoped_action(name:str, user_scope_function, session_scope_function):
+    #     Preprocessor.scoped_actions.append(CutOffAfterPremium(name, user_scope_function, session_scope_function))
+
+    scoped_actions = [ CutOffAfterPremium() ]
     
     @staticmethod
-    def register_session_scoped_action(name:str, user_scope_function, session_scope_function):
-        Preprocessor.scoped_actions.append(Preprocessor.ScopedAction(name, user_scope_function, session_scope_function))
-        
-    @staticmethod
-    def cut_off_after_buy_premium(self):
+    # def preprocess_scoped(self):
+    def cut_off_after_buy_premium( sessions_df:pd.DataFrame, scoped_actions: list[ScopedAction] = scoped_actions):
         sessions_filtered = pd.DataFrame()
-        for user_id, user_actions in self.sessions_df.groupby("user_id"):
+        for user_id, user_actions in sessions_df.groupby("user_id"):
+            if all([state.break_loop for state in Preprocessor.scoped_actions]):
+                break
+            
             for scoped_action in Preprocessor.scoped_actions:
                 scoped_action.user_run(user_actions)
 
             for session_id, session in user_actions.groupby("session_id"):
-                scoped_action.session_setup()
-                if user_bought_premium:
-                    break
-                session.sort_values(by=["timestamp"])
-                premium_bought_mask = session.loc[:, "event_type"] == "BUY_PREMIUM"
-                bought_premium_in_session = premium_bought_mask.any()
-
-                if bought_premium_in_session:
-                    time_of_buy_premium = session.loc[
-                        premium_bought_mask
-                    ].timestamp.iloc[0]
-                    session = session.loc[
-                        session.loc[:, "timestamp"] <= time_of_buy_premium
-                    ]
-                    user_bought_premium = True
+                for scoped_action in Preprocessor.scoped_actions:
+                    session = scoped_action.session_run(session)
 
                 sessions_filtered = pd.concat([sessions_filtered, session])
         return sessions_filtered
 
-    # # TODO maybe move to a test
-    # def check_cut_off(self):
-    #     # sessions_df rows containing BUY_PREMIUM events
-    #     bought_premium_mask = self.sessions_df.loc[:, "event_type"] == "BUY_PREMIUM"
-    #     bought_premium = self.sessions_df[bought_premium_mask]
-    #     # list of all premium users
-    #     premium_users = bought_premium[["user_id"]].values.T.tolist()[0]
-    #     # this we test
-    #     cut_off_df = self.cut_off_after_buy_premium()
-
-    #     # iterate
-    #     for user_id, user_sessions in cut_off_df.groupby("user_id"):
-    #         if user_id in premium_users:
-    #             assert user_sessions.iloc[-1]["event_type"] == "BUY_PREMIUM"
 
     @staticmethod
     def calculate_ads_time(df):
