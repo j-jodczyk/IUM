@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 import datetime
+from typing import List
 
 
 class Session(BaseModel):
@@ -8,3 +9,7 @@ class Session(BaseModel):
     track_id: str
     event_type: str
     session_id: int
+
+
+class Sessions(BaseModel):
+    sessions: List[Session]

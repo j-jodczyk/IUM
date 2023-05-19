@@ -6,13 +6,16 @@ import json
 
 from fastapi.responses import JSONResponse
 from AB_tests import AB_test
-from models.models import NaiveModel
+from models import NaiveModel
 
 from user import User
+from session import Sessions
+from actual import Actual
 from files_utils import (
-    update_prediction_file,
-    KNN_PREDICTIONS_FILE,
-    BASE_PREDICTIONS_FILE,
+    add_prediction,
+    add_actual,
+    BASE_NAME,
+    KNN_NAME,
     KNN_FILEPATH,
     BASE_FILEPATH,
 )
@@ -29,33 +32,54 @@ models = {
 app = fastapi.FastAPI()
 
 
-@app.post("/predict/{model_name}")
-def get_will_buy_premium(model_name: str, user: User) -> JSONResponse:
+@app.post("/predict-with/{model_name}")
+def predict_with(model_name: str, user: User, test: bool = False) -> JSONResponse:
     if model_name not in models.keys():
         raise fastapi.HTTPException(status_code=404, detail="Unknown model")
     if user is None:
         raise fastapi.HTTPException(status_code=400, detail="Empty request body")
     model = models[model_name]
+    prediction = int(model.predict([user.to_vector()])[0])
+    if test:
+        add_prediction(user.user_id, prediction, model_name)
 
-    return {"will_buy_premium": int(model.predict([user.to_vector()])[0])}
+    return {"will_buy_premium": prediction}
 
 
-@app.post("/add_to_test_ab")
-def add_to_test_ab(user: User) -> JSONResponse:
+# predicts with randomly selected model and saves to file
+@app.post("/predict")
+def predict(user: User) -> JSONResponse:
     to_A = random.randint(0, 1)
     prediction = None
     if to_A:
         prediction = models["base"].predict([user.to_vector()])[0]
-        update_prediction_file(user.user_id, prediction, BASE_PREDICTIONS_FILE)
+        add_prediction(user.user_id, prediction, BASE_NAME)
     else:
         prediction = models["KNN"].predict([user.to_vector()])[0]
-        update_prediction_file(user.user_id, prediction, KNN_PREDICTIONS_FILE)
+        add_prediction(user.user_id, prediction, KNN_NAME)
     return {"will_buy_premium": prediction}
+
+
+@app.post("/add-sessions")
+def add_sessions(sessions: Sessions) -> JSONResponse:
+    with open("./microservice/data/sessions.json", "r+") as f:
+        data = json.load(f)
+    for session in sessions.sessions:
+        data.append(session.dict())
+    with open("./microservice/data/sessions.json", "w") as f:
+        json.dump(data, f, default=str)
+
+
+# lets user update the prediction file if user has knowlege about prediction
+@app.post("/submit-actual")
+def submit_actual(actual: Actual) -> JSONResponse:
+    add_actual(actual.user_id, actual.actual)
+    return {"response": "OK"}
 
 
 @app.get("/test_ab_results")
 def test_ab_results() -> JSONResponse:
-    return {"AB_test_verdict": AB_test}
+    return {"AB_test_verdict": AB_test()}
 
 
 uvicorn.run(app)

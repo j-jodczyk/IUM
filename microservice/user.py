@@ -1,6 +1,5 @@
 from pydantic import BaseModel
 from typing import List
-from session import Session
 from load_data import Preprocessor
 import pandas as pd
 
@@ -62,24 +61,20 @@ GENRES = [
 
 class User(BaseModel):
     user_id: int
+    name: str
     city: str
-    sessions: List[Session]
+    street: str
     favourite_genres: List[str]
+    premium_user: bool
 
     def get_city_vector(self):
         return [1 if self.city == city else 0 for city in CITIES]
 
     def get_ads_ratio(self):
-        df = Preprocessor.get_adds_time_df(
-            pd.DataFrame.from_records([s.__dict__ for s in self.sessions])
-        )
-        return df["ads_time"].iloc[0] / df["all_time"].iloc[0]
+        pass
 
     def get_events_vector(self):
-        events_vector = [
-            len([s for s in self.sessions if s.event_type == event])
-            for event in EVENT_TYPES
-        ]
+        events_vector = []
         return events_vector
 
     def get_adds_after_fav_ratio(self):
