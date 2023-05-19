@@ -1,6 +1,7 @@
 import unittest
 import pandas as pd
-from src.microservice.load_data import Preprocessor
+import numpy as np
+from src.microservice.load_data import Preprocessor, CutOffAfterPremium
 
 
 class PreprocessorTest(unittest.TestCase):
@@ -8,6 +9,30 @@ class PreprocessorTest(unittest.TestCase):
         self.sessions_df = pd.read_json("./src/data/sessions.json")
         # self.sessions_df = pd.read_json("../src/data/sessions.json")
 
+    def test_cut_off_after_premium(self):
+        # GIVEN
+        cutter = CutOffAfterPremium()
+        buy_premium = "BUY_PREMIUM"
+        # WHEN
+        for user_id, user in self.sessions_df.groupby(by="user_id"):
+            cutter.user_setup(user)
+            for session_id, session in user.groupby(by="session_id"):
+                if all([state.user_scope_data["break_loop"] for state in [cutter]]):
+                    break
+                size_before = session.size
+                session = cutter.session_run(session)
+
+        # THEN
+                if session is None:
+                    break
+                
+                if np.any(session.loc[:, "event_type"] == buy_premium):
+                    self.assertEqual(session.iloc[-1]["event_type"], buy_premium)
+                else:
+                    self.assertEqual(session.size, size_before)
+                                        
+            cutter.user_run(user)
+            
     def test_cut_off(self):
         # GIVEN
         # sessions_df rows containing BUY_PREMIUM events
