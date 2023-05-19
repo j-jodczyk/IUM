@@ -19,7 +19,9 @@ class PreprocessorTest(unittest.TestCase):
             for session_id, session in user.groupby(by="session_id"):
                 if all([state.user_scope_data["break_loop"] for state in [cutter]]):
                     break
-                size_before = session.size
+
+                size_before = len(session.index)
+                session = Preprocessor.set_next_timestamp(session)
                 session = cutter.session_run(session)
 
         # THEN
@@ -29,7 +31,7 @@ class PreprocessorTest(unittest.TestCase):
                 if np.any(session.loc[:, "event_type"] == buy_premium):
                     self.assertEqual(session.iloc[-1]["event_type"], buy_premium)
                 else:
-                    self.assertEqual(session.size, size_before)
+                    self.assertEqual(len(session.index), size_before)
                                         
             cutter.user_run(user)
             
@@ -48,4 +50,5 @@ class PreprocessorTest(unittest.TestCase):
         # The last action is BUY_PREMIUM 
         for user_id, user_sessions in cut_off_df.groupby("user_id"):
             if user_id in premium_users:
+                user_sessions.sort_values(by="timestamp", inplace=True)
                 self.assertEqual(user_sessions.iloc[-1]["event_type"], "BUY_PREMIUM")
