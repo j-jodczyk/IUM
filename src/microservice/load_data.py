@@ -32,30 +32,37 @@ class DataModel( object ):
 class Preprocessor:
     # @staticmethod
     # def register_session_scoped_action(name:str, user_scope_function, session_scope_function):
-    #     Preprocessor.scoped_actions.append(CutOffAfterPremium(name, user_scope_function, session_scope_function))
+    #     scoped_actions.append(CutOffAfterPremium(name, user_scope_function, session_scope_function))
 
-    scoped_actions = [ CutOffAfterPremium() ]
     
     @staticmethod
     # def preprocess_scoped(self):
-    def cut_off_after_buy_premium( sessions_df:pd.DataFrame, scoped_actions: list[ScopedAction] = scoped_actions):
-        sessions_filtered = pd.DataFrame()
+    def cut_off_after_buy_premium( sessions_df:pd.DataFrame, scoped_actions: list[ScopedAction] = None ):
+        scoped_actions = [ CutOffAfterPremium() ]
+    
+        df_filtered = pd.DataFrame()
         for user_id, user_actions in sessions_df.groupby("user_id"):
-            for scoped_action in Preprocessor.scoped_actions:
+            user_filtered = pd.DataFrame()
+            
+            # Setup for all actions
+            for scoped_action in scoped_actions:
                 scoped_action.user_setup(user_actions)
 
             for session_id, session in user_actions.groupby("session_id"):
-                if all([state.user_scope_data["break_loop"] for state in Preprocessor.scoped_actions]):
+                if all([state.user_scope_data["break_loop"] for state in scoped_actions]):
                     break
-                for scoped_action in Preprocessor.scoped_actions:
+            
+                for scoped_action in scoped_actions:
                     session = scoped_action.session_run(session)
 
-                sessions_filtered = pd.concat([sessions_filtered, session])
+                user_filtered = pd.concat([user_filtered, session])
 
-            for scoped_action in Preprocessor.scoped_actions:
-                scoped_action.user_run(user_actions)
-
-        return sessions_filtered
+            for scoped_action in scoped_actions:
+                user_filtered = scoped_action.user_run(user_filtered)
+                # TODO check if copy needed
+            df_filtered = pd.concat([df_filtered, user_filtered])
+             
+        return df_filtered
 
 
     @staticmethod
