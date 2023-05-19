@@ -2,12 +2,12 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MultiLabelBinarizer, LabelBinarizer
 
-from src.microservice.scoped_action import ScopedAction, CutOffAfterPremium, GetAdsTime
+from src.microservice.scoped_action import ScopedAction, CutOffAfterPremium, GetAdsTime, AdsFavRatio
 
 mlb = MultiLabelBinarizer(sparse_output=True)
 lb = LabelBinarizer()
 class DataModel( object ):
-    def __init__(self, load_data: bool=True, data_paths_dict: dict = {"../data/users_path": "users.json", "../data/tracks_path":"tracks.json", "../data/artists_path":"artists.json", "../data/sessions_path":"sessions.json"}):
+    def __init__(self, load_data: bool=True, data_paths_dict: dict = {"users_path": "../src/data/users.json", "tracks_path":"../src/data/tracks.json", "artists_path":"../src/data/artists.json", "sessions_path":"../src/data/sessions.json"}):
         self.users_path=data_paths_dict["users_path"]
         self.tracks_path=data_paths_dict["tracks_path"]
         self.artists_path=data_paths_dict["artists_path"]
@@ -28,7 +28,20 @@ class DataModel( object ):
         self.tracks_df.rename(columns={"id": "track_id"}, inplace=True)
         self.artists_df.rename(columns={"id": "id_artist"}, inplace=True)
 
+    def get_merged_dfs(self, N=None):
+        all_df = self.users_df.merge(
+            self.sessions_df, on="user_id"
+        )
+        all_df = all_df.merge(
+            self.tracks_df[["track_id", "id_artist"]], on="track_id", how="left"
+        )
+        all_df = all_df.merge(
+            self.artists_df[["id_artist", "genres"]], on="id_artist", how="left"
+        )
 
+        all_df["genres"] = all_df["genres"].fillna("").apply(list)
+        return all_df if N is None else all_df.iloc[:N, :]
+    
 class Preprocessor:
     # @staticmethod
     # def register_session_scoped_action(name:str, user_scope_function, session_scope_function):
@@ -36,10 +49,9 @@ class Preprocessor:
 
     
     @staticmethod
-    # def preprocess_scoped(self):
-    def cut_off_after_buy_premium( sessions_df:pd.DataFrame, scoped_actions: list[ScopedAction] = None):
+    def preprocess_scoped( sessions_df: pd.DataFrame, scoped_actions: list[ScopedAction] = None):
         # problem with static class - this cant be class property or default argumentent value
-        scoped_actions = [ CutOffAfterPremium(), GetAdsTime() ]
+        scoped_actions = [ CutOffAfterPremium(), GetAdsTime(), AdsFavRatio() ] if scoped_actions is None else scoped_actions
         
         df_filtered = pd.DataFrame()
         for user_id, user_actions in sessions_df.groupby("user_id"):
@@ -54,6 +66,7 @@ class Preprocessor:
                     break
             
                 session = Preprocessor.set_next_timestamp(session)
+                session = Preprocessor.set_fav_genre_track(session)
                 for scoped_action in scoped_actions:
                     session = scoped_action.session_run(session)
                     if session is None:
@@ -80,69 +93,23 @@ class Preprocessor:
             -1, fill_value=session.loc[:, "timestamp"].max()
         )
         return session
-    
    
-    def get_merged_dfs(self):
-        all_df = self.users_df[["user_id", "favourite_genres"]].merge(
-            self.sessions_df, on="user_id"
-        )
-        all_df = all_df.merge(
-            self.tracks_df[["track_id", "id_artist"]], on="track_id", how="left"
-        )
-        all_df = all_df.merge(
-            self.artists_df[["id_artist", "genres"]], on="id_artist", how="left"
-        )
-
-        all_df["genres"] = all_df["genres"].fillna("").apply(list)
-        return all_df
-
-    # TODO refector if time - better structure
-    def get_ads_after_fav_ratio_df(self):
-        all_df = self.get_merged_dfs()
-        all_df["fav_genre_track"] = all_df.apply(
+    @staticmethod
+    def set_fav_genre_track(session) -> pd.DataFrame:
+        session["fav_genre_track"] = session.apply(
             lambda row: list(set(row["favourite_genres"]) & set(row["genres"])), axis=1
         )
-
-        # TODO: do the rest inside sessions:
-
-        all_df["prev_event"] = all_df["event_type"].shift()
-        all_df["prev_fav_genre_track"] = all_df["fav_genre_track"].shift()
-
-        ad_counts = all_df["event_type"].eq("ADVERTISEMENT")
-        adds_after_fav_counts = (
-            all_df[ad_counts & all_df["prev_fav_genre_track"].apply(lambda x: x != [])]
-            .groupby("user_id")
-            .size()
-            .rename("adds_after_fav_count")
-        )
-        all_adds_counts = (
-            all_df[ad_counts].groupby("user_id").size().rename("all_adds_count")
-        )
-
-        final_df = pd.DataFrame(
-            {
-                "adds_after_fav_count": adds_after_fav_counts,
-                "all_adds_count": all_adds_counts,
-            }
-        ).reset_index()
-        final_df["adds_after_fav_ratio"] = (
-            final_df["adds_after_fav_count"] / final_df["all_adds_count"]
-        )
-        final_df["adds_after_fav_ratio"] = final_df["adds_after_fav_ratio"].fillna(
-            0.0
-        )  # Replace NaN values with 0.0
-        final_df = final_df[["user_id", "adds_after_fav_ratio"]]
-
-        return final_df
-
-    def get_event_type_count_df(self):
+        return session
+    
+    @staticmethod
+    def get_event_type_count_df(df):
         all_events_counts = (
-            self.sessions_df.groupby("user_id")
+            df.groupby("user_id")
             .size()
             .reset_index(name="all_events_count")
         )
         event_type_count = (
-            self.sessions_df.groupby(["user_id", "event_type"])
+            df.groupby(["user_id", "event_type"])
             .size()
             .unstack(fill_value=0)
             .reset_index()
@@ -156,46 +123,34 @@ class Preprocessor:
             event_type_count[col] = (
                 event_type_count[col] / event_type_count["all_events_count"]
             )
+        # TODO: /\ isnt it already divided
         event_type_count.drop("event_type_BUY_PREMIUM", axis="columns", inplace=True)
         event_type_count.drop("all_events_count", axis="columns", inplace=True)
         return event_type_count
 
-    def run(self):
-        self.df = self.df.join(
+
+    @staticmethod
+    def run(df):
+        df = df.join(
             pd.DataFrame(
-                lb.fit_transform(self.df.pop("city")),
-                index=self.df.index,
+                lb.fit_transform(df.pop("city")),
+                index=df.index,
                 columns=lb.classes_,
             )
         )
 
-        self.sessions_df = self.cut_off_after_buy_premium()
-
-        # TODO: Unify naming "adds" and "ads"
-        self.df = self.cut_off_after_buy_premium()
-        # time_comparison_df = Preprocessor.get_adds_time_df(self.seesion_df)
-        # self.df = self.df.join(
-        #     pd.DataFrame(
-        #         data=time_comparison_df.loc[:, "ads_time"]
-        #         / time_comparison_df.loc[:, "all_time"],
-        #         columns=["Ads_ratio"],
-        #     ),
-        #     on="user_id",
-        # )
-
-        event_type_count_df = self.get_event_type_count_df()
-        self.df = pd.merge(self.df, event_type_count_df, on=["user_id"])
-
-        adds_after_fav_ratio_df = self.get_ads_after_fav_ratio_df()
-        self.df = pd.merge(self.df, adds_after_fav_ratio_df, on=["user_id"])
+        df = Preprocessor.preprocess_scoped(df)
+        
+        event_type_count_df = Preprocessor.get_event_type_count_df(df)
+        df = pd.merge(df, event_type_count_df, on=["user_id"])
 
         # one hot encoding
-        self.df = self.df.join(
+        df = df.join(
             pd.DataFrame.sparse.from_spmatrix(
-                mlb.fit_transform(self.df.pop("favourite_genres")),
-                index=self.df.index,
+                mlb.fit_transform(df.pop("favourite_genres")),
+                index=df.index,
                 columns=mlb.classes_,
             )
         )
 
-        return self.df
+        return df

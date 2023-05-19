@@ -1,13 +1,13 @@
 import unittest
 import pandas as pd
 import numpy as np
-from src.microservice.load_data import Preprocessor, CutOffAfterPremium
+from src.microservice.load_data import Preprocessor, CutOffAfterPremium, DataModel
 
 
 class PreprocessorTest(unittest.TestCase):
     def setUp(self):
-        self.sessions_df = pd.read_json("./src/data/sessions.json")
-        # self.sessions_df = pd.read_json("../src/data/sessions.json")
+        # self.sessions_df = pd.read_json("./src/data/sessions.json")
+        self.sessions_df = pd.read_json("../src/data/sessions.json")
 
     def test_cut_off_after_premium(self):
         # GIVEN
@@ -52,3 +52,8 @@ class PreprocessorTest(unittest.TestCase):
             if user_id in premium_users:
                 user_sessions.sort_values(by="timestamp", inplace=True)
                 self.assertEqual(user_sessions.iloc[-1]["event_type"], "BUY_PREMIUM")
+
+    def test_run(self):
+        data_model = DataModel()
+        df = data_model.get_merged_dfs()
+        Preprocessor.run(df)

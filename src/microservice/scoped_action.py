@@ -82,3 +82,37 @@ class GetAdsTime(ScopedAction):
         ads_time = self.user_scope_data["user_ads_time"] / np.timedelta64(1, "s")
         user.loc[:, "Ads_ratio"] = ads_time / all_time 
         return user
+
+class AdsFavRatio(ScopedAction):
+
+    def user_setup(self, user:pd.DataFrame) -> pd.DataFrame:
+        ad_counts = user["event_type"].eq("ADVERTISEMENT")    
+        self.user_scope_data.update({
+            "adds_after_fav_count": 0,
+            "all_adds_count": len(user[ad_counts].index),
+            "break_loop": False
+        })
+
+
+    def session_run(self, session:pd.DataFrame) -> pd.DataFrame:
+        session["prev_event"] = session["event_type"].shift()
+        session["prev_fav_genre_track"] = session["fav_genre_track"].shift()
+        # TODO: fil value = [] ?
+
+        ad_counts = session["event_type"].eq("ADVERTISEMENT")
+        adds_after_fav_counts = len(
+            session[ad_counts & session["prev_fav_genre_track"].apply(lambda x: x != [])].index
+        )
+        
+        self.user_scope_data["adds_after_fav_count"] += adds_after_fav_counts
+        return session
+    
+    def user_run(self, user:pd.DataFrame) -> pd.DataFrame:    
+        user["adds_after_fav_ratio"] = (
+        self.user_scope_data["adds_after_fav_count"] / self.user_scope_data["all_adds_count"]
+        )
+        user["adds_after_fav_ratio"] = user["adds_after_fav_ratio"].fillna(
+            0.0
+        )  # Replace NaN values with 0.0
+
+        return user
