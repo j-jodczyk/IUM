@@ -41,17 +41,20 @@ class Preprocessor:
     def cut_off_after_buy_premium( sessions_df:pd.DataFrame, scoped_actions: list[ScopedAction] = scoped_actions):
         sessions_filtered = pd.DataFrame()
         for user_id, user_actions in sessions_df.groupby("user_id"):
-            if all([state.break_loop for state in Preprocessor.scoped_actions]):
-                break
-            
             for scoped_action in Preprocessor.scoped_actions:
-                scoped_action.user_run(user_actions)
+                scoped_action.user_setup(user_actions)
 
             for session_id, session in user_actions.groupby("session_id"):
+                if all([state.user_scope_data["break_loop"] for state in Preprocessor.scoped_actions]):
+                    break
                 for scoped_action in Preprocessor.scoped_actions:
                     session = scoped_action.session_run(session)
 
                 sessions_filtered = pd.concat([sessions_filtered, session])
+
+            for scoped_action in Preprocessor.scoped_actions:
+                scoped_action.user_run(user_actions)
+
         return sessions_filtered
 
 
