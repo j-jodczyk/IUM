@@ -37,9 +37,10 @@ class Preprocessor:
     
     @staticmethod
     # def preprocess_scoped(self):
-    def cut_off_after_buy_premium( sessions_df:pd.DataFrame, scoped_actions: list[ScopedAction] = None ):
+    def cut_off_after_buy_premium( sessions_df:pd.DataFrame, scoped_actions: list[ScopedAction] = None):
+        # problem with static class - this cant be class property or default argumentent value
         scoped_actions = [ CutOffAfterPremium() ]
-    
+        
         df_filtered = pd.DataFrame()
         for user_id, user_actions in sessions_df.groupby("user_id"):
             user_filtered = pd.DataFrame()
@@ -52,11 +53,13 @@ class Preprocessor:
                 if all([state.user_scope_data["break_loop"] for state in scoped_actions]):
                     break
             
+                session = Preprocessor.set_next_timestamp(session)
                 for scoped_action in scoped_actions:
                     session = scoped_action.session_run(session)
 
                 user_filtered = pd.concat([user_filtered, session])
 
+            # Run for all actions - after each session was run
             for scoped_action in scoped_actions:
                 user_filtered = scoped_action.user_run(user_filtered)
                 # TODO check if copy needed
@@ -64,51 +67,51 @@ class Preprocessor:
              
         return df_filtered
 
-
     @staticmethod
-    def calculate_ads_time(df):
-        ads_mask = df.loc[:, "event_type"] == "ADVERTISEMENT"
-        ads_time = np.timedelta64(0)
-        for _, action in df.loc[ads_mask].iterrows():
-            difference = action.next_timestamp - action.timestamp
-            if difference < np.timedelta64(0):
-                pass
-            ads_time += difference
-        return ads_time
+    def set_next_timestamp(session) -> pd.DataFrame:
+        # returns sorted ndarray with next_timestamp column regarding the session scope
+        session.sort_values(by=["timestamp"])
+        # TODO maybe investigate this chain warning a bit more instead of supressing:
+        # https://towardsdatascience.com/how-to-suppress-settingwithcopywarning-in-pandas-c0c759bd0f10
+        pd.options.mode.chained_assignment = None
+        session.loc[:, "next_timestamp"] = session.loc[:, "timestamp"].shift(
+            -1, fill_value=session.loc[:, "timestamp"].max()
+        )
+        return session
+    
+    # @staticmethod
+    # def get_adds_time_df(sessions_df):
+    #     time_comparison_df = pd.DataFrame()
 
-    @staticmethod
-    def get_adds_time_df(sessions_df):
-        time_comparison_df = pd.DataFrame()
+    #     for user_id, user_actions in sessions_df.groupby("user_id"):
+    #         user_ads_time = np.timedelta64(0)
+    #         user_all_time = np.timedelta64(0)
 
-        for user_id, user_actions in sessions_df.groupby("user_id"):
-            user_ads_time = np.timedelta64(0)
-            user_all_time = np.timedelta64(0)
+    #         for session_id, session in user_actions.groupby("session_id"):
+    #             # sanity sort - should be sorted by now anyways
+    #             session.sort_values(by=["timestamp"])
+    #             user_all_time += (
+    #                 session.iloc[-1, session.columns.get_loc("timestamp")]
+    #                 - session.iloc[0, session.columns.get_loc("timestamp")]
+    #             )
+    #             # TODO maybe investigate this chain warning a bit more instead of supressing:
+    #             # https://towardsdatascience.com/how-to-suppress-settingwithcopywarning-in-pandas-c0c759bd0f10
+    #             pd.options.mode.chained_assignment = None
+    #             session.loc[:, "next_timestamp"] = session.loc[:, "timestamp"].shift(
+    #                 -1, fill_value=session.loc[:, "timestamp"].max()
+    #             )
 
-            for session_id, session in user_actions.groupby("session_id"):
-                # sanity sort - should be sorted by now anyways
-                session.sort_values(by=["timestamp"])
-                user_all_time += (
-                    session.iloc[-1, session.columns.get_loc("timestamp")]
-                    - session.iloc[0, session.columns.get_loc("timestamp")]
-                )
-                # TODO maybe investigate this chain warning a bit more instead of supressing:
-                # https://towardsdatascience.com/how-to-suppress-settingwithcopywarning-in-pandas-c0c759bd0f10
-                pd.options.mode.chained_assignment = None
-                session.loc[:, "next_timestamp"] = session.loc[:, "timestamp"].shift(
-                    -1, fill_value=session.loc[:, "timestamp"].max()
-                )
+    #             user_ads_time += Preprocessor.calculate_ads_time(session)
 
-                user_ads_time += Preprocessor.calculate_ads_time(session)
-
-            session_times_df = pd.DataFrame(
-                {
-                    "all_time": user_all_time / np.timedelta64(1, "s"),
-                    "ads_time": user_ads_time / np.timedelta64(1, "s"),
-                },
-                index=[user_id],
-            )
-            time_comparison_df = pd.concat([time_comparison_df, session_times_df])
-        return time_comparison_df
+    #         session_times_df = pd.DataFrame(
+    #             {
+    #                 "all_time": user_all_time / np.timedelta64(1, "s"),
+    #                 "ads_time": user_ads_time / np.timedelta64(1, "s"),
+    #             },
+    #             index=[user_id],
+    #         )
+    #         time_comparison_df = pd.concat([time_comparison_df, session_times_df])
+    #     return time_comparison_df
 
     def get_merged_dfs(self):
         all_df = self.users_df[["user_id", "favourite_genres"]].merge(
@@ -199,16 +202,17 @@ class Preprocessor:
 
         self.sessions_df = self.cut_off_after_buy_premium()
 
-        # Unify naming "adds" and "ads"
-        time_comparison_df = Preprocessor.get_adds_time_df(self.seesion_df)
-        self.df = self.df.join(
-            pd.DataFrame(
-                data=time_comparison_df.loc[:, "ads_time"]
-                / time_comparison_df.loc[:, "all_time"],
-                columns=["Ads_ratio"],
-            ),
-            on="user_id",
-        )
+        # TODO: Unify naming "adds" and "ads"
+        self.df = self.cut_off_after_buy_premium()
+        # time_comparison_df = Preprocessor.get_adds_time_df(self.seesion_df)
+        # self.df = self.df.join(
+        #     pd.DataFrame(
+        #         data=time_comparison_df.loc[:, "ads_time"]
+        #         / time_comparison_df.loc[:, "all_time"],
+        #         columns=["Ads_ratio"],
+        #     ),
+        #     on="user_id",
+        # )
 
         event_type_count_df = self.get_event_type_count_df()
         self.df = pd.merge(self.df, event_type_count_df, on=["user_id"])
