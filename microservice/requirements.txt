@@ -1,0 +1,8 @@
+pickle
+fastapi
+uvicorn
+json
+random
+sklearn
+pandas
+numpy
