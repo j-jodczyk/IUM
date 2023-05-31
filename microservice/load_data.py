@@ -3,40 +3,57 @@ import numpy as np
 import os
 from typing import List
 from sklearn.preprocessing import MultiLabelBinarizer, LabelBinarizer
-from scoped_action import ScopedAction, CutOffAfterPremium, GetAdsTime, AdsFavRatio
-from utils.fast_reader import FastReader
+from microservice.scoped_action import (
+    ScopedAction,
+    CutOffAfterPremium,
+    GetAdsTime,
+    AdsFavRatio,
+)
+from microservice.utils.fast_reader import FastReader
 
 mlb = MultiLabelBinarizer(sparse_output=True)
 lb = LabelBinarizer()
-        
-class DataModel( object ):
-    def __init__(self, load_data: bool=True, data_paths_dict: dict = {"users_path":  "./data_jsonl/users.jsonll", "tracks_path": "./data_jsonl/tracks.jsonl", "artists_path": "./data_jsonl/artists.jsonl", "sessions_path": "./data_jsonl/sessions.jsonl"}):
-        self.users_path=data_paths_dict["users_path"]
-        self.tracks_path=data_paths_dict["tracks_path"]
-        self.artists_path=data_paths_dict["artists_path"]
-        self.sessions_path=data_paths_dict["sessions_path"]
-        self.users_df=pd.DataFrame()
-        self.tracks_df=pd.DataFrame()
-        self.artists_df=pd.DataFrame()
-        self.sessions_df=pd.DataFrame()
+
+
+class DataModel(object):
+    def __init__(
+        self,
+        load_data: bool = True,
+        data_paths_dict: dict = {
+            "users_path": "./data_jsonl/users.jsonl",
+            "tracks_path": "./data_jsonl/tracks.jsonl",
+            "artists_path": "./data_jsonl/artists.jsonl",
+            "sessions_path": "./data_jsonl/sessions.jsonl",
+        },
+    ):
+        self.users_path = data_paths_dict["users_path"]
+        self.tracks_path = data_paths_dict["tracks_path"]
+        self.artists_path = data_paths_dict["artists_path"]
+        self.sessions_path = data_paths_dict["sessions_path"]
+        self.users_df = pd.DataFrame()
+        self.tracks_df = pd.DataFrame()
+        self.artists_df = pd.DataFrame()
+        self.sessions_df = pd.DataFrame()
         if load_data:
             self.load_data()
-    
+
     def load_data(self):
-        self.users_df = FastReader.read_json(self.users_path, )
+        self.users_df = FastReader.read_json(
+            self.users_path,
+        )
         self.tracks_df = FastReader.read_json(self.tracks_path)
         self.artists_df = FastReader.read_json(self.artists_path)
         self.sessions_df = FastReader.read_json(self.sessions_path)
-        self.sessions_df.loc[:, "timestamp"] = pd.to_datetime(self.sessions_df.loc[:, "timestamp"])
-        
+        self.sessions_df.loc[:, "timestamp"] = pd.to_datetime(
+            self.sessions_df.loc[:, "timestamp"]
+        )
+
         self.tracks_df.rename(columns={"id": "track_id"}, inplace=True)
         self.artists_df.rename(columns={"id": "id_artist"}, inplace=True)
         return self
 
     def get_merged_dfs(self, N=None):
-        all_df = self.users_df.merge(
-            self.sessions_df, on="user_id"
-        )
+        all_df = self.users_df.merge(self.sessions_df, on="user_id")
         all_df = all_df.merge(
             self.tracks_df[["track_id", "id_artist"]], on="track_id", how="left"
         )
@@ -46,30 +63,38 @@ class DataModel( object ):
 
         all_df["genres"] = all_df["genres"].fillna("").apply(list)
         return all_df if N is None else all_df.iloc[:N, :]
-    
+
+
 class Preprocessor:
     # @staticmethod
     # def register_session_scoped_action(name:str, user_scope_function, session_scope_function):
     #     scoped_actions.append(CutOffAfterPremium(name, user_scope_function, session_scope_function))
 
-    
     @staticmethod
-    def preprocess_scoped( sessions_df: pd.DataFrame, scoped_actions: List[ScopedAction] = None):
+    def preprocess_scoped(
+        sessions_df: pd.DataFrame, scoped_actions: List[ScopedAction] = None
+    ):
         # problem with static class - this cant be class property or default argumentent value
-        scoped_actions = [ CutOffAfterPremium(), GetAdsTime(), AdsFavRatio() ] if scoped_actions is None else scoped_actions
-        
+        scoped_actions = (
+            [CutOffAfterPremium(), GetAdsTime(), AdsFavRatio()]
+            if scoped_actions is None
+            else scoped_actions
+        )
+
         df_filtered = pd.DataFrame()
         for user_id, user_actions in sessions_df.groupby("user_id"):
             user_filtered = pd.DataFrame()
-            
+
             # Setup for all actions
             for scoped_action in scoped_actions:
                 scoped_action.user_setup(user_actions)
 
             for session_id, session in user_actions.groupby("session_id"):
-                if all([state.user_scope_data["break_loop"] for state in scoped_actions]):
+                if all(
+                    [state.user_scope_data["break_loop"] for state in scoped_actions]
+                ):
                     break
-            
+
                 session = Preprocessor.set_next_timestamp(session)
                 session = Preprocessor.set_fav_genre_track(session)
                 for scoped_action in scoped_actions:
@@ -82,9 +107,9 @@ class Preprocessor:
             # Run for all actions - after each session was run
             for scoped_action in scoped_actions:
                 user_filtered = scoped_action.user_run(user_filtered)
-                
+
             df_filtered = pd.concat([df_filtered, user_filtered])
-             
+
         return df_filtered
 
     @staticmethod
@@ -96,20 +121,18 @@ class Preprocessor:
             -1, fill_value=session.loc[:, "timestamp"].max()
         )
         return session
-   
+
     @staticmethod
     def set_fav_genre_track(session) -> pd.DataFrame:
         session["fav_genre_track"] = session.apply(
             lambda row: list(set(row["favourite_genres"]) & set(row["genres"])), axis=1
         )
         return session
-    
+
     @staticmethod
     def get_event_type_count_df(df):
         all_events_counts = (
-            df.groupby("user_id")
-            .size()
-            .reset_index(name="all_events_count")
+            df.groupby("user_id").size().reset_index(name="all_events_count")
         )
         event_type_count = (
             df.groupby(["user_id", "event_type"])
@@ -130,7 +153,6 @@ class Preprocessor:
         event_type_count.drop("all_events_count", axis="columns", inplace=True)
         return event_type_count
 
-
     @staticmethod
     def run(df):
         df = df.join(
@@ -142,7 +164,7 @@ class Preprocessor:
         )
 
         df = Preprocessor.preprocess_scoped(df)
-        
+
         event_type_count_df = Preprocessor.get_event_type_count_df(df)
         df = pd.merge(df, event_type_count_df, on=["user_id"])
 
@@ -154,5 +176,23 @@ class Preprocessor:
                 columns=mlb.classes_,
             )
         )
+
+        to_drop = [
+            "name",
+            "street",
+            "timestamp",
+            "track_id",
+            "event_type",
+            "session_id",
+            "id_artist",
+            "genres",
+            "next_timestamp",
+            "fav_genre_track",
+            "prev_event",
+            "prev_fav_genre_track",
+        ]
+
+        for col in to_drop:
+            df.drop(col, axis=1, inplace=True)
 
         return df
