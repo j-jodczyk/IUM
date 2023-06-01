@@ -3,13 +3,13 @@ import numpy as np
 import os
 from typing import List
 from sklearn.preprocessing import MultiLabelBinarizer, LabelBinarizer
-from microservice.scoped_action import (
+from scoped_action import (
     ScopedAction,
     CutOffAfterPremium,
     GetAdsTime,
     AdsFavRatio,
 )
-from microservice.utils.fast_reader import FastReader
+from utils.fast_reader import FastReader
 
 mlb = MultiLabelBinarizer(sparse_output=True)
 lb = LabelBinarizer()
@@ -20,10 +20,10 @@ class DataModel(object):
         self,
         load_data: bool = True,
         data_paths_dict: dict = {
-            "users_path": "./data_jsonl/users.jsonl",
-            "tracks_path": "./data_jsonl/tracks.jsonl",
-            "artists_path": "./data_jsonl/artists.jsonl",
-            "sessions_path": "./data_jsonl/sessions.jsonl",
+            "users_path": "../data_jsonl/users.jsonl",
+            "tracks_path": "../data_jsonl/tracks.jsonl",
+            "artists_path": "../data_jsonl/artists.jsonl",
+            "sessions_path": "../data_jsonl/sessions.jsonl",
         },
     ):
         self.users_path = data_paths_dict["users_path"]
@@ -53,7 +53,9 @@ class DataModel(object):
         return self
 
     def get_merged_dfs(self, N=None):
-        all_df = self.users_df.merge(self.sessions_df, on="user_id")
+        all_df = self.users_df[
+            ["user_id", "premium_user", "city", "favourite_genres"]
+        ].merge(self.sessions_df, on="user_id")
         all_df = all_df.merge(
             self.tracks_df[["track_id", "id_artist"]], on="track_id", how="left"
         )
@@ -154,7 +156,7 @@ class Preprocessor:
         return event_type_count
 
     @staticmethod
-    def run(df):
+    def run(df, drop_user_id=True):
         df = df.join(
             pd.DataFrame(
                 lb.fit_transform(df.pop("city")),
@@ -177,9 +179,10 @@ class Preprocessor:
             )
         )
 
+        # Ważna notatka: dropnięcie user_id powinno być opcjonlane - bo w metodzie User.to_vector jakoś trzeba
+        # wyciągnąć rekordy z interesującym nas userem
+
         to_drop = [
-            "name",
-            "street",
             "timestamp",
             "track_id",
             "event_type",
@@ -191,6 +194,8 @@ class Preprocessor:
             "prev_event",
             "prev_fav_genre_track",
         ]
+
+        to_drop = to_drop + ["user_id"] if not drop_user_id else to_drop
 
         for col in to_drop:
             df.drop(col, axis=1, inplace=True)

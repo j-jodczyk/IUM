@@ -46,12 +46,12 @@ class ModelManager:
 
     def fit_data(self, X_train, Y_train):
         self.y_hat = None
-        self.model.fit(self, X_train, Y_train)
+        self.model.fit(X_train, Y_train)
         return self
 
     def fit_data(self):
         self.y_hat = None
-        self.model.fit(self, self.X_train, self.y_train)
+        self.model.fit(self.X_train, self.y_train)
         return self
 
     def predict(self, X_test):
