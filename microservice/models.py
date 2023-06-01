@@ -1,16 +1,39 @@
 from load_data import Preprocessor, DataModel
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report
+from sklearn.neighbors import KNeighborsClassifier
 import pickle
+import logging
+import os
 
+# defining log file:
+def config_logging(number: int) -> None:
+    # create a directory for logging
+    log_dir = "log"
+    if not os.path.isdir(log_dir):
+        os.makedirs(log_dir)
+
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="{asctime} {levelname:<8} {message}",
+        style="{",
+        filename="./log/%d.log" % number,
+        filemode="a",
+        force=True,
+    )
+
+config_logging(0)
 
 class NaiveModel:
+    def fit(self, X, y):
+        return None
+    
     def predict(self, input_data):
         return [1]
 
 
 class ModelManager:
-    def __init__(self, model=NaiveModel):
+    def __init__(self, model=KNeighborsClassifier):
         self.model = model()
         self.X_train = None
         self.X_test = None
@@ -20,8 +43,14 @@ class ModelManager:
         
     # Shouldn't be in the model
     def prepare_data(self) :
+        # TODO remove - its for testing
+        # LinesOfData=50000
+        
+        logging.info(f"Enter: prepare_data")
         data_paths = {"users_path": "./data_jsonl/users.jsonl", "tracks_path":"./data_jsonl/tracks.jsonl", "artists_path":"./data_jsonl/artists.jsonl", "sessions_path":"./data_jsonl/sessions.jsonl"}
         data_model = DataModel(load_data=True, data_paths_dict=data_paths)
+        # TODO remove LinesOfData - its for testing
+        # data_df = data_model.get_merged_dfs(N=LinesOfData)
         data_df = data_model.get_merged_dfs()
         data_df = Preprocessor.run(data_df)
         X = data_df.drop(["premium_user"], axis=1)
@@ -33,20 +62,24 @@ class ModelManager:
         return self
 
     def fit_data(self, X_train, Y_train):
+        logging.info(f"Enter: fit_data")
         self.y_hat = None
-        self.model.fit(self, X_train, Y_train)
+        self.model.fit( X_train, Y_train)
         return self
 
     def fit_data(self):
+        logging.info(f"Enter: fit_data")
         self.y_hat = None
-        self.model.fit(self,self.X_train, self.y_train)
+        self.model.fit(self.X_train, self.y_train)
         return self
     
     def predict(self, X_test):
+        logging.info(f"Enter: predict")
         self.y_hat = self.model.predict(X_test)
         return self.y_hat
 
     def predict(self):
+        logging.info(f"Enter: predict")
         y_hat = self.model.predict(self.X_test)
         return y_hat
 

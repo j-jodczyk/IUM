@@ -34,7 +34,7 @@ class DataModel( object ):
         return self
 
     def get_merged_dfs(self, N=None):
-        all_df = self.users_df.merge(
+        all_df = self.users_df[["user_id", "premium_user", "city", "favourite_genres"]].merge(
             self.sessions_df, on="user_id"
         )
         all_df = all_df.merge(
@@ -146,6 +146,12 @@ class Preprocessor:
         event_type_count_df = Preprocessor.get_event_type_count_df(df)
         df = pd.merge(df, event_type_count_df, on=["user_id"])
 
+        # TODO - cities are hard_coded
+        # TODO - take them from label binarizer to here 
+        df = df[['premium_user', 'favourite_genres', 'Gdynia', 'Kraków',
+       'Poznań', 'Radom', 'Szczecin', 'Warszawa', 'Wrocław', 'Ads_ratio',
+       'adds_after_fav_ratio']]
+        
         # one hot encoding
         df = df.join(
             pd.DataFrame.sparse.from_spmatrix(
@@ -154,5 +160,4 @@ class Preprocessor:
                 columns=mlb.classes_,
             )
         )
-
         return df
