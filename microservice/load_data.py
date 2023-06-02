@@ -21,10 +21,10 @@ class DataModel(object):
         self,
         load_data: bool = True,
         data_paths_dict: dict = {
-            "users_path": "../data_jsonl/users.jsonl",
-            "tracks_path": "../data_jsonl/tracks.jsonl",
-            "artists_path": "../data_jsonl/artists.jsonl",
-            "sessions_path": "../data_jsonl/sessions.jsonl",
+            "users_path": "./data_jsonl/users.jsonl",
+            "tracks_path": "./data_jsonl/tracks.jsonl",
+            "artists_path": "./data_jsonl/artists.jsonl",
+            "sessions_path": "./data_jsonl/sessions.jsonl",
         },
     ):
         self.users_path = data_paths_dict["users_path"]

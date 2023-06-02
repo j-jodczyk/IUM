@@ -1,5 +1,5 @@
 import json
-import random
+from sklearn.model_selection import train_test_split
 
 KNN_FILEPATH = "./microservice/saved_models/KNN_model.sav"
 BASE_FILEPATH = "./microservice/saved_models/base_model.sav"
@@ -40,8 +40,8 @@ def add_actual(user_id: int, actual: int):
         json.dump(file_data, f)
 
 
-def randomly_split_group(group: dict, test_size: float = 0.5):
-    n_test = int(len(group) * test_size)
-    test_group = random.sample(group, n_test)
-    train_group = [obj_ for obj_ in group if obj_ not in test_group]
-    return (train_group, test_group)
+def randomly_split_group(df, proportion=0.5):
+    df1, df2 = train_test_split(df, test_size=1 - proportion)
+    df1.reset_index(drop=True, inplace=True)
+    df2.reset_index(drop=True, inplace=True)
+    return df1, df2

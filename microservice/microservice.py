@@ -51,7 +51,8 @@ def predict_with(model_name: str, user: User, test: bool = False) -> JSONRespons
     if user is None:
         raise fastapi.HTTPException(status_code=400, detail="Empty request body")
     model = models[model_name]
-    prediction = int(model.predict([user.to_vector(df)])[0])
+    user_vec = user.to_vector(df).drop("user_id", axis=1)
+    prediction = int(model.predict(user_vec))
     if test:
         add_prediction(user.user_id, prediction, model_name)
 
@@ -63,11 +64,12 @@ def predict_with(model_name: str, user: User, test: bool = False) -> JSONRespons
 def predict(user: User) -> JSONResponse:
     to_A = random.randint(0, 1)
     prediction = None
+    user_vec = user.to_vector(df).drop("user_id", axis=1)
     if to_A:
-        prediction = models["base"].predict([user.to_vector(df)])[0]
+        prediction = models["base"].predict(user_vec)[0]
         add_prediction(user.user_id, prediction, BASE_NAME)
     else:
-        prediction = models["KNN"].predict([user.to_vector(df)])[0]
+        prediction = models["KNN"].predict(user_vec)[0]
         add_prediction(user.user_id, prediction, KNN_NAME)
     return {"will_buy_premium": prediction}
 
