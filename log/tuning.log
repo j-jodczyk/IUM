@@ -5,3 +5,7 @@
 2023-06-02 18:50:44,829 INFO     Best params: {'p': 1, 'n_neighbors': 7, 'leaf_size': 13}	Best score: 0.5469135802469136	Best Estimator: KNeighborsClassifier(leaf_size=13, n_neighbors=7, p=1)
 2023-06-02 18:51:09,196 INFO     Best params: {'min_samples_leaf': 50, 'max_depth': 10, 'criterion': 'gini'}	Best score: 0.691358024691358	Best Estimator: DecisionTreeClassifier(max_depth=10, min_samples_leaf=50)
 2023-06-02 19:42:38,671 INFO     Best params: {'n_estimators': 1550, 'min_samples_split': 2, 'min_samples_leaf': 2, 'max_features': 'sqrt', 'max_depth': 10, 'bootstrap': True}	Best score: 0.7530864197530864	Best Estimator: RandomForestClassifier(max_depth=10, min_samples_leaf=2, n_estimators=1550)
+2023-06-02 22:04:10,235 INFO     Best params: {'weights': 'uniform', 'p': 2, 'n_neighbors': 19, 'leaf_size': 36, 'algorithm': 'auto'}	Best score: 0.5728395061728395	Best Estimator: KNeighborsClassifier(leaf_size=36, n_neighbors=19)
+2023-06-02 22:04:20,467 INFO     Best params: {'min_samples_leaf': 44, 'max_depth': 62, 'criterion': 'entropy'}	Best score: 0.7172839506172839	Best Estimator: DecisionTreeClassifier(criterion='entropy', max_depth=62, min_samples_leaf=44)
+2023-06-02 22:15:07,665 INFO     Best params: {'n_estimators': 1200, 'min_samples_split': 2, 'min_samples_leaf': 4, 'max_features': 'auto', 'max_depth': None, 'bootstrap': True}	Best score: 0.7320987654320987	Best Estimator: RandomForestClassifier(max_features='auto', min_samples_leaf=4,
+                       n_estimators=1200)
