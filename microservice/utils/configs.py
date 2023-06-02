@@ -1,5 +1,6 @@
 import numpy as np
 import logging
+import random
 import os
 
 # defining log file:
@@ -21,6 +22,7 @@ def config_logging(name: int) -> None:
 
 def config_seed(seed:int=42):
     np.random.seed(seed)
+    random.seed(seed)
 
 
 def config(log_name:str="rest", seed:int=42):

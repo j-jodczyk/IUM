@@ -192,7 +192,7 @@ class Preprocessor:
         )
         
     @staticmethod
-    def save_binarizers(self, filenames={"mlb":"./microservice/saved_models/mlb.sav", "lb":"./microservice/saved_models/lb.sav"}):
+    def save_binarizers(filenames={"mlb":"./microservice/saved_models/mlb.sav", "lb":"./microservice/saved_models/lb.sav"}):
         pickle.dump(Preprocessor.mlb, open(filenames["mlb"], "wb"))
         pickle.dump(Preprocessor.lb, open(filenames["lb"], "wb"))
     

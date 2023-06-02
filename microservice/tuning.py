@@ -13,8 +13,10 @@ import logging
 config(log_name="tuning")
 
 class ParametersSearchLoop (object):
-    # TODO: choose scoring
-    def __init__ (self, default_model=True, prepare_data=True, estimator_params:dict=None, scoring='accuracy', n_jobs=None):
+    # We chose f1-score, because precision and recall are important for us in evaluation of the classifier.
+    # Because we don't want the distribution of the classess to influence the final score we chose the weighted version. 
+    # Important supposition - the data should reflect the real distribution of the data
+    def __init__ (self, default_model=True, prepare_data=True, estimator_params:dict=None, scoring='f1_weighted', n_jobs=None):
         self.scoring = scoring
         self.n_jobs = n_jobs
         self.estimator_params:dict = dict()
