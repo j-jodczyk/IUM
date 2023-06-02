@@ -1,4 +1,5 @@
 from load_data import Preprocessor, DataModel
+import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report
 from sklearn.neighbors import KNeighborsClassifier
@@ -28,8 +29,10 @@ class NaiveModel:
     def fit(self, X, y):
         return None
     
-    def predict(self, input_data):
-        return [1]
+    def predict(self, input_df):
+        user_ids = input_df.index
+        mock_series = pd.Series(True, index=user_ids, name="user_id")
+        return mock_series
 
 
 class ModelManager:
@@ -40,14 +43,14 @@ class ModelManager:
         self.y_train = None
         self.y_test = None
         self.y_hat = None
-        
+
     # Shouldn't be in the model
     def prepare_data(self) :
         # TODO remove - its for testing
         # LinesOfData=50000
         
         logging.info(f"Enter: prepare_data")
-        data_paths = {"users_path": "./data_jsonl/users.jsonl", "tracks_path":"./data_jsonl/tracks.jsonl", "artists_path":"./data_jsonl/artists.jsonl", "sessions_path":"./data_jsonl/sessions.jsonl"}
+        data_paths = {"users_path": "../data_jsonl/users.jsonl", "tracks_path":"../data_jsonl/tracks.jsonl", "artists_path":"../data_jsonl/artists.jsonl", "sessions_path":"../data_jsonl/sessions.jsonl"}
         data_model = DataModel(load_data=True, data_paths_dict=data_paths)
         # TODO remove LinesOfData - its for testing
         # data_df = data_model.get_merged_dfs(N=LinesOfData)
@@ -55,9 +58,13 @@ class ModelManager:
         data_df = Preprocessor.run(data_df)
         X = data_df.drop(["premium_user"], axis=1)
         y = data_df.loc[:, "premium_user"]
-        def split_data(test_size:float = 0.3):
+
+        def split_data(test_size: float = 0.3):
             # TODO: here radom_state or global random_state
-            self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(X, y, test_size=test_size)
+            self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
+                X, y, test_size=test_size
+            )
+
         split_data()
         return self
 
@@ -68,31 +75,32 @@ class ModelManager:
         return self
 
     def fit_data(self):
-        logging.info(f"Enter: fit_data")
+        logging.info(f"Enter: fit_data with \tX_train len: {len(self.X_train.index)} \ty_train len: {len(self.y_train.index)}")
         self.y_hat = None
         self.model.fit(self.X_train, self.y_train)
         return self
-    
+
     def predict(self, X_test):
-        logging.info(f"Enter: predict")
+        logging.info(f"Enter: predict with \tX_test len: {len(X_test.index)}")
         self.y_hat = self.model.predict(X_test)
+        logging.info(f"Left: predict with \ty_hat len: {len(self.y_hat.index)}")
         return self.y_hat
 
     def predict(self):
-        logging.info(f"Enter: predict")
-        y_hat = self.model.predict(self.X_test)
-        return y_hat
+        logging.info(f"Enter: predict with \tX_test len: {len(self.X_test.index)}")
+        self.y_hat = self.model.predict(self.X_test)
+        logging.info(f"Left: predict with \ty_hat len: {len(self.y_hat.index)}")
+        return self.y_hat
 
     def accuracy(self):
         if self.y_hat is None:
             return None
         return accuracy_score(self.y_test, self.y_hat)
-        
+
     def classification_report(self):
         if self.y_hat is None:
             return None
-        return classification_report(self.y_test, self.y_hat) 
-        
+        return classification_report(self.y_test, self.y_hat)
 
     def save_model_to_file(self, filename):
         pickle.dump(self.model, open(filename, "wb"))
