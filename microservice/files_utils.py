@@ -7,7 +7,7 @@ BASE_FILEPATH = "./microservice/saved_models/base_model.sav"
 PREDICTIONS_FILE = "./microservice/saved_models/predictions.json"
 
 BASE_NAME = "base"
-KNN_NAME = "knn"
+KNN_NAME = "KNN"
 
 
 def update_prediction_file(user_id: int, prediction: int, model_name: str, actual: int):

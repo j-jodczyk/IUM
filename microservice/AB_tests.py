@@ -1,5 +1,6 @@
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import f1_score
+from scipy.stats import wilcoxon
 from scipy import stats
 import json
 import numpy as np
@@ -8,8 +9,16 @@ from files_utils import PREDICTIONS_FILE, BASE_NAME, KNN_NAME
 
 
 def get_collected_predictions():
-    with open(PREDICTIONS_FILE, "r") as f:
-        predictions = json.load(open(PREDICTIONS_FILE))
+    # with open(PREDICTIONS_FILE, "r") as f:
+    #   predictions = json.load(open(PREDICTIONS_FILE))
+    with open(
+        "/home/julia/IUM_ordered/IUM/microservice/saved_models/predictions.json", "r"
+    ) as f:
+        predictions = json.load(
+            open(
+                "/home/julia/IUM_ordered/IUM/microservice/saved_models/predictions.json"
+            )
+        )
     return predictions
 
 
@@ -48,7 +57,7 @@ def AB_test(alpha=0.05):
     y_pred_B = [elem["prediction"] for elem in predictions if elem["model"] == KNN_NAME]
     f1_score_B = f1_score(y_actual_B, y_pred_B)
 
-    t_stat, p_value = stats.ttest_ind(f1_score_B, f1_score_A)
+    t_stat, p_value = wilcoxon([f1_score_B], [f1_score_A])
 
     if p_value < alpha:
         return "Reject H0: Model B (KNN) performs significantly better than A (base)"
