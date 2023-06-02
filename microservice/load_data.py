@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import os
+import pickle
 from typing import List
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MultiLabelBinarizer, LabelBinarizer
@@ -11,10 +12,6 @@ from scoped_action import (
     AdsFavRatio,
 )
 from utils.fast_reader import FastReader
-
-mlb = MultiLabelBinarizer(sparse_output=True)
-lb = LabelBinarizer()
-
 
 class DataModel(object):
     def __init__(
@@ -82,6 +79,9 @@ class Preprocessor:
     # @staticmethod
     # def register_session_scoped_action(name:str, user_scope_function, session_scope_function):
     #     scoped_actions.append(CutOffAfterPremium(name, user_scope_function, session_scope_function))
+
+    mlb = MultiLabelBinarizer(sparse_output=True)
+    lb = LabelBinarizer()
     
     # TODO: add interaction = month*hour - cyclic dependencies
 
@@ -167,7 +167,34 @@ class Preprocessor:
         event_type_count.drop("event_type_BUY_PREMIUM", axis="columns", inplace=True)
         event_type_count.drop("all_events_count", axis="columns", inplace=True)
         return event_type_count
-
+    
+    
+    @staticmethod
+    def encode_city(df:pd.DataFrame, column_name="city"):
+        df.sort_values(by=column_name, inplace=True)
+        return df.join(
+            pd.DataFrame(
+                Preprocessor.lb.fit_transform(df.pop(column_name)),
+                index=df.index,
+                columns=Preprocessor.lb.classes_,
+            )
+        )
+        
+    @staticmethod
+    def encode_genre(df:pd.DataFrame, column_name="favourite_genres"):
+        df.sort_values(by=column_name, inplace=True)
+        return df.join(
+            pd.DataFrame.sparse.from_spmatrix(
+                Preprocessor.mlb.fit_transform(df.pop(column_name)),
+                index=df.index,
+                columns=Preprocessor.mlb.classes_,
+            )
+        )
+        
+    @staticmethod
+    def save_binarizers(self, filenames={"mlb":"./microservice/saved_models/mlb.sav", "lb":"./microservice/saved_models/lb.sav"}):
+        pickle.dump(Preprocessor.mlb, open(filenames["mlb"], "wb"))
+        pickle.dump(Preprocessor.lb, open(filenames["lb"], "wb"))
     
     # TODO - cities are hard_coded in the final_columns arg
     # TODO - take them from label binarizer to here 
@@ -178,13 +205,7 @@ class Preprocessor:
        'Poznań', 'Radom', 'Szczecin', 'Warszawa', 'Wrocław', 'Ads_ratio',
        'adds_after_fav_ratio'],
             ):
-        df = df.join(
-            pd.DataFrame(
-                lb.fit_transform(df.pop("city")),
-                index=df.index,
-                columns=lb.classes_,
-            )
-        )
+        df = Preprocessor.encode_city(df)
 
         df = Preprocessor.preprocess_scoped(df)
 
@@ -194,13 +215,7 @@ class Preprocessor:
         df = df[final_columns]
         
         # one hot encoding
-        df = df.join(
-            pd.DataFrame.sparse.from_spmatrix(
-                mlb.fit_transform(df.pop("favourite_genres")),
-                index=df.index,
-                columns=mlb.classes_,
-            )
-        )
+        df = Preprocessor.encode_genre(df)
         
         df = df.drop_duplicates().reset_index()
         return df
@@ -214,6 +229,7 @@ class Preprocessor:
         split:bool=False):
             
         data_df = Preprocessor.run(data_df, final_columns)
+        Preprocessor.save_binarizers()
         if not split:
             return data_df
         

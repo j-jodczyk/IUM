@@ -1,28 +1,10 @@
-from load_data import Preprocessor, DataModel
 import pandas as pd
 from sklearn.metrics import accuracy_score, classification_report
 from sklearn.neighbors import KNeighborsClassifier
 import pickle
 import logging
-import os
+from load_data import Preprocessor, DataModel
 
-# defining log file:
-def config_logging(number: int) -> None:
-    # create a directory for logging
-    log_dir = "log"
-    if not os.path.isdir(log_dir):
-        os.makedirs(log_dir)
-
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format="{asctime} {levelname:<8} {message}",
-        style="{",
-        filename=f"./log/{number}.log" ,
-        filemode="a",
-        force=True,
-    )
-
-config_logging("models")
 
 class NaiveModel:
     def fit(self, X, y):

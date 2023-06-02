@@ -4,16 +4,17 @@ from sklearn.model_selection import HalvingRandomSearchCV
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
-from models import ModelManager, config_logging
+from models import ModelManager
+from utils.configs import config
 from load_data import Preprocessor, DataModel
 import numpy as np
 import logging
 
-config_logging("tuning")
+config(log_name="tuning")
 
 class ParametersSearchLoop (object):
     # TODO: choose scoring
-    def __init__ (self, default_model=True, prepare_data=True, estimator_params:dict=None, scoring='f1_micro', n_jobs=None):
+    def __init__ (self, default_model=True, prepare_data=True, estimator_params:dict=None, scoring='accuracy', n_jobs=None):
         self.scoring = scoring
         self.n_jobs = n_jobs
         self.estimator_params:dict = dict()
@@ -97,9 +98,9 @@ class ParametersSearchLoop (object):
                                     )
             try:   
                 grid.fit(self.X, self.y)
-                logging.info(f"Best params: {grid.best_params_}\tBest score: {grid.best_score_}\tBest Estimator: {grid.best_estimator_}")
+                logging.info(f"Best {self.scoring} params: {grid.best_params_}\tBest score: {grid.best_score_}\tBest Estimator: {grid.best_estimator_}")
             except KeyboardInterrupt:
-                message = f"PROGRAM STOPPED: Best params: {grid.best_params_}\tBest score: {grid.best_score_}\tBest Estimator: {grid.best_estimator_}"
+                message = f"PROGRAM STOPPED: Best {self.scoring} params: {grid.best_params_}\tBest score: {grid.best_score_}\tBest Estimator: {grid.best_estimator_}"
                 logging.info(message)
 
             yield grid.best_params_, grid.best_score_, grid.best_estimator_
