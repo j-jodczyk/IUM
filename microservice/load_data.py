@@ -82,8 +82,9 @@ class Preprocessor:
     # @staticmethod
     # def register_session_scoped_action(name:str, user_scope_function, session_scope_function):
     #     scoped_actions.append(CutOffAfterPremium(name, user_scope_function, session_scope_function))
-
     
+    # TODO: add interaction = month*hour - cyclic dependencies
+
     @staticmethod
     def preprocess_scoped(
         sessions_df: pd.DataFrame, scoped_actions: List[ScopedAction] = None
@@ -167,7 +168,7 @@ class Preprocessor:
         event_type_count.drop("all_events_count", axis="columns", inplace=True)
         return event_type_count
 
-
+    
     # TODO - cities are hard_coded in the final_columns arg
     # TODO - take them from label binarizer to here 
     @staticmethod

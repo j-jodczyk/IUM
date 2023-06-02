@@ -17,12 +17,12 @@ def config_logging(number: int) -> None:
         level=logging.DEBUG,
         format="{asctime} {levelname:<8} {message}",
         style="{",
-        filename="./log/%d.log" % number,
+        filename=f"./log/{number}.log" ,
         filemode="a",
         force=True,
     )
 
-config_logging(0)
+config_logging("models")
 
 class NaiveModel:
     def fit(self, X, y):
