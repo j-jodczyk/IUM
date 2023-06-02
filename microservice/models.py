@@ -71,7 +71,7 @@ class ModelManager:
     def fit_data(self, X_train, Y_train):
         logging.info(f"Enter: fit_data")
         self.y_hat = None
-        self.model.fit( X_train, Y_train)
+        self.model.fit(X_train, Y_train)
         return self
 
     def fit_data(self):

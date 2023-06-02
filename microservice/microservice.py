@@ -5,8 +5,10 @@ import random
 import json
 
 from fastapi.responses import JSONResponse
+import pandas as pd
 from AB_tests import AB_test
 from models import NaiveModel
+from load_data import Preprocessor, DataModel
 
 from user import User
 from session import Sessions
@@ -32,6 +34,16 @@ models = {
 app = fastapi.FastAPI()
 
 
+def update_df():
+    base_model = DataModel()
+    df = base_model.get_merged_dfs()
+    df = Preprocessor.run(df, drop_user_id=False)
+    return df
+
+
+df = update_df()
+
+
 @app.post("/predict-with/{model_name}")
 def predict_with(model_name: str, user: User, test: bool = False) -> JSONResponse:
     if model_name not in models.keys():
@@ -39,7 +51,7 @@ def predict_with(model_name: str, user: User, test: bool = False) -> JSONRespons
     if user is None:
         raise fastapi.HTTPException(status_code=400, detail="Empty request body")
     model = models[model_name]
-    prediction = int(model.predict([user.to_vector()])[0])
+    prediction = int(model.predict([user.to_vector(df)])[0])
     if test:
         add_prediction(user.user_id, prediction, model_name)
 
@@ -52,22 +64,24 @@ def predict(user: User) -> JSONResponse:
     to_A = random.randint(0, 1)
     prediction = None
     if to_A:
-        prediction = models["base"].predict([user.to_vector()])[0]
+        prediction = models["base"].predict([user.to_vector(df)])[0]
         add_prediction(user.user_id, prediction, BASE_NAME)
     else:
-        prediction = models["KNN"].predict([user.to_vector()])[0]
+        prediction = models["KNN"].predict([user.to_vector(df)])[0]
         add_prediction(user.user_id, prediction, KNN_NAME)
     return {"will_buy_premium": prediction}
 
 
 @app.post("/add-sessions")
 def add_sessions(sessions: Sessions) -> JSONResponse:
+    global df
     with open("./microservice/data/sessions.json", "r+") as f:
         data = json.load(f)
     for session in sessions.sessions:
         data.append(session.dict())
     with open("./microservice/data/sessions.json", "w") as f:
         json.dump(data, f, default=str)
+    df = update_df()
 
 
 # lets user update the prediction file if user has knowlege about prediction

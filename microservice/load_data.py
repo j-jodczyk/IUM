@@ -53,9 +53,9 @@ class DataModel(object):
         return self
 
     def get_merged_dfs(self, N=None):
-        all_df = self.users_df[["user_id", "premium_user", "city", "favourite_genres"]].merge(
-            self.sessions_df, on="user_id"
-        )
+        all_df = self.users_df[
+            ["user_id", "premium_user", "city", "favourite_genres"]
+        ].merge(self.sessions_df, on="user_id")
         all_df = all_df.merge(
             self.tracks_df[["track_id", "id_artist"]], on="track_id", how="left"
         )
@@ -155,6 +155,9 @@ class Preprocessor:
         event_type_count.drop("all_events_count", axis="columns", inplace=True)
         return event_type_count
 
+
+    # TODO - cities are hard_coded in the final_columns arg
+    # TODO - take them from label binarizer to here 
     @staticmethod
     def run(
         df, 
@@ -175,8 +178,6 @@ class Preprocessor:
         event_type_count_df = Preprocessor.get_event_type_count_df(df)
         df = pd.merge(df, event_type_count_df, on=["user_id"])
 
-        # TODO - cities are hard_coded
-        # TODO - take them from label binarizer to here 
         df = df[final_columns]
         
         # one hot encoding
