@@ -1,6 +1,5 @@
 from load_data import Preprocessor, DataModel
 import pandas as pd
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report
 from sklearn.neighbors import KNeighborsClassifier
 import pickle
@@ -50,21 +49,18 @@ class ModelManager:
         data_paths = {"users_path": "../data_jsonl/users.jsonl", "tracks_path":"../data_jsonl/tracks.jsonl", "artists_path":"../data_jsonl/artists.jsonl", "sessions_path":"../data_jsonl/sessions.jsonl"}
         data_model = DataModel(load_data=True, data_paths_dict=data_paths)
         data_df = data_model.get_merged_dfs(since=since)
-            
-        data_df = Preprocessor.run(data_df)
-        X = data_df.drop(["premium_user"], axis=1)
-        y = data_df.loc[:, "premium_user"]
-
-        def split_data(test_size: float = 0.3):
-            # TODO: here radom_state or global random_state
-            self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
-                X, y, test_size=test_size
-            )
-
-        split_data()
+        # TODO:check why since works?
+        self.X_train, self.X_test, self.y_train, self.y_test = Preprocessor(data_df).transform(split=True)
+        
         return self
 
     def fit_data(self, X_train, Y_train):
+        logging.info(f"Enter: fit_data")
+        self.y_hat = None
+        self.model.fit(X_train, Y_train)
+        return self
+
+    def fit(self, X_train, Y_train):
         logging.info(f"Enter: fit_data")
         self.y_hat = None
         self.model.fit(X_train, Y_train)
@@ -100,3 +96,6 @@ class ModelManager:
 
     def save_model_to_file(self, filename):
         pickle.dump(self.model, open(filename, "wb"))
+
+    def get_params(self):
+        return self.model.get_params()

@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import os
 from typing import List
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MultiLabelBinarizer, LabelBinarizer
 from scoped_action import (
     ScopedAction,
@@ -57,7 +58,7 @@ class DataModel(object):
         self.artists_df.rename(columns={"id": "id_artist"}, inplace=True)
         return self
 
-    def get_merged_dfs(self, N=None, 
+    def get_merged_dfs(self,
         since: np.datetime64 = None):
         
         if since is not None:
@@ -74,8 +75,9 @@ class DataModel(object):
         )
 
         all_df["genres"] = all_df["genres"].fillna("").apply(list)
-        return all_df if N is None else all_df.iloc[:N, :]
+        return all_df
 
+    
 class Preprocessor:
     # @staticmethod
     # def register_session_scoped_action(name:str, user_scope_function, session_scope_function):
@@ -199,8 +201,25 @@ class Preprocessor:
             )
         )
         
-        df.to_csv("before_group.csv")
         df = df.drop_duplicates().reset_index()
-        df.to_csv("after_group.csv")
-        
         return df
+    
+    @staticmethod
+    def transform(
+        data_df, 
+        final_columns:list = ['premium_user', 'favourite_genres', 'Gdynia', 'Kraków',
+       'Poznań', 'Radom', 'Szczecin', 'Warszawa', 'Wrocław', 'Ads_ratio',
+       'adds_after_fav_ratio'],
+        split:bool=False):
+            
+        data_df = Preprocessor.run(data_df, final_columns)
+        if not split:
+            return data_df
+        
+        X = data_df.drop(["premium_user"], axis=1)
+        y = data_df.loc[:, "premium_user"]
+
+        # TODO: here radom_state or global random_state
+        return train_test_split(
+                X, y, test_size=test_size
+            )
