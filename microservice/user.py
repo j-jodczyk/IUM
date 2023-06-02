@@ -12,5 +12,6 @@ class User(BaseModel):
     premium_user: bool
 
     def to_vector(self, df):
-        user_df = df[df["user_id"] == self.user_id]
-        return list(user_df.iloc[0, :])
+        user_df = df[df["user_id"] == int(self.user_id)]
+        user_df = user_df.drop("premium_user", axis=1)
+        return user_df

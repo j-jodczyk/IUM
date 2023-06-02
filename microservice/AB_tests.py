@@ -4,7 +4,6 @@ from scipy import stats
 import json
 import numpy as np
 
-from load_data import Preprocessor
 from files_utils import PREDICTIONS_FILE, BASE_NAME, KNN_NAME
 
 

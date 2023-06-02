@@ -20,10 +20,10 @@ class DataModel(object):
         self,
         load_data: bool = True,
         data_paths_dict: dict = {
-            "users_path": "../data_jsonl/users.jsonl",
-            "tracks_path": "../data_jsonl/tracks.jsonl",
-            "artists_path": "../data_jsonl/artists.jsonl",
-            "sessions_path": "../data_jsonl/sessions.jsonl",
+            "users_path": "./data_jsonl/users.jsonl",
+            "tracks_path": "./data_jsonl/tracks.jsonl",
+            "artists_path": "./data_jsonl/artists.jsonl",
+            "sessions_path": "./data_jsonl/sessions.jsonl",
         },
     ):
         self.users_path = data_paths_dict["users_path"]
@@ -195,9 +195,11 @@ class Preprocessor:
             "prev_fav_genre_track",
         ]
 
-        to_drop = to_drop + ["user_id"] if not drop_user_id else to_drop
+        to_drop = to_drop + ["user_id"] if drop_user_id else to_drop
 
         for col in to_drop:
             df.drop(col, axis=1, inplace=True)
+
+        df = df.drop_duplicates()
 
         return df
