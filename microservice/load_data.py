@@ -37,7 +37,10 @@ class DataModel(object):
         if load_data:
             self.load_data()
 
-    def load_data(self):
+    def load_data(
+        self, 
+        since: np.datetime64 = None,
+                  ):
         self.users_df = FastReader.read_json(
             self.users_path,
         )
@@ -47,15 +50,22 @@ class DataModel(object):
         self.sessions_df.loc[:, "timestamp"] = pd.to_datetime(
             self.sessions_df.loc[:, "timestamp"]
         )
+        if since is not None:
+            self.sessions_df = self.sessions_df.loc[self.sessions_df.loc[:, "timestamp"] >= since]
 
         self.tracks_df.rename(columns={"id": "track_id"}, inplace=True)
         self.artists_df.rename(columns={"id": "id_artist"}, inplace=True)
         return self
 
-    def get_merged_dfs(self, N=None):
+    def get_merged_dfs(self, N=None, 
+        since: np.datetime64 = None):
+        
+        if since is not None:
+            self.sessions_df = self.sessions_df.loc[self.sessions_df.loc[:, "timestamp"] >= since]
+
         all_df = self.users_df[
             ["user_id", "premium_user", "city", "favourite_genres"]
-        ].merge(self.sessions_df, on="user_id")
+        ].merge(self.sessions_df, on="user_id", how="right")
         all_df = all_df.merge(
             self.tracks_df[["track_id", "id_artist"]], on="track_id", how="left"
         )
@@ -163,7 +173,7 @@ class Preprocessor:
         df, 
         final_columns:list = ['premium_user', 'favourite_genres', 'Gdynia', 'Kraków',
        'Poznań', 'Radom', 'Szczecin', 'Warszawa', 'Wrocław', 'Ads_ratio',
-       'adds_after_fav_ratio']
+       'adds_after_fav_ratio'],
             ):
         df = df.join(
             pd.DataFrame(

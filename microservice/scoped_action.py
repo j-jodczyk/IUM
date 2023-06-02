@@ -103,10 +103,14 @@ class AdsFavRatio(ScopedAction):
         self.user_scope_data["adds_after_fav_count"] += adds_after_fav_counts
         return session
     
-    def user_run(self, user:pd.DataFrame) -> pd.DataFrame:    
-        user["adds_after_fav_ratio"] = (
-        self.user_scope_data["adds_after_fav_count"] / self.user_scope_data["all_adds_count"]
-        )
+    def user_run(self, user:pd.DataFrame) -> pd.DataFrame:
+        if self.user_scope_data["all_adds_count"] != 0:    
+            user["adds_after_fav_ratio"] = (
+            self.user_scope_data["adds_after_fav_count"] / self.user_scope_data["all_adds_count"]
+            )
+        elif self.user_scope_data["adds_after_fav_count"] == 0:
+            user["adds_after_fav_ratio"] = np.zeros(len(user.index))
+        
         user["adds_after_fav_ratio"] = user["adds_after_fav_ratio"].fillna(
             0.0
         )  # Replace NaN values with 0.0

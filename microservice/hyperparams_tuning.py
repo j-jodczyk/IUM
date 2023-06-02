@@ -5,7 +5,7 @@ import numpy as np
 np.random.seed(31415)
 def grid_search_params():
     model_manager = ModelManager()
-    model_manager.prepare_data().fit_data().predict()
+    model_manager.prepare_data(since=np.datetime64('2019-08', 'D')).fit_data().predict()
     print(model_manager.classification_report())
     
 if __name__ == "__main__":

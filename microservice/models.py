@@ -45,16 +45,12 @@ class ModelManager:
         self.y_hat = None
 
     # Shouldn't be in the model
-    def prepare_data(self) :
-        # TODO remove - its for testing
-        # LinesOfData=50000
-        
+    def prepare_data(self, since=None) :
         logging.info(f"Enter: prepare_data")
         data_paths = {"users_path": "../data_jsonl/users.jsonl", "tracks_path":"../data_jsonl/tracks.jsonl", "artists_path":"../data_jsonl/artists.jsonl", "sessions_path":"../data_jsonl/sessions.jsonl"}
         data_model = DataModel(load_data=True, data_paths_dict=data_paths)
-        # TODO remove LinesOfData - its for testing
-        # data_df = data_model.get_merged_dfs(N=LinesOfData)
-        data_df = data_model.get_merged_dfs()
+        data_df = data_model.get_merged_dfs(since=since)
+            
         data_df = Preprocessor.run(data_df)
         X = data_df.drop(["premium_user"], axis=1)
         y = data_df.loc[:, "premium_user"]
@@ -75,21 +71,21 @@ class ModelManager:
         return self
 
     def fit_data(self):
-        logging.info(f"Enter: fit_data with \tX_train len: {len(self.X_train.index)} \ty_train len: {len(self.y_train.index)}")
+        logging.info(f"Enter: fit_data with \tX_train len: {len(self.X_train)} \ty_train len: {len(self.y_train)}")
         self.y_hat = None
         self.model.fit(self.X_train, self.y_train)
         return self
 
     def predict(self, X_test):
-        logging.info(f"Enter: predict with \tX_test len: {len(X_test.index)}")
+        logging.info(f"Enter: predict with \tX_test len: {len(X_test)}")
         self.y_hat = self.model.predict(X_test)
-        logging.info(f"Left: predict with \ty_hat len: {len(self.y_hat.index)}")
+        logging.info(f"Left: predict with \ty_hat len: {len(self.y_hat)}")
         return self.y_hat
 
     def predict(self):
-        logging.info(f"Enter: predict with \tX_test len: {len(self.X_test.index)}")
+        logging.info(f"Enter: predict with \tX_test len: {len(self.X_test)}")
         self.y_hat = self.model.predict(self.X_test)
-        logging.info(f"Left: predict with \ty_hat len: {len(self.y_hat.index)}")
+        logging.info(f"Left: predict with \ty_hat len: {len(self.y_hat)}")
         return self.y_hat
 
     def accuracy(self):
