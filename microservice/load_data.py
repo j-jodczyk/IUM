@@ -76,20 +76,13 @@ class DataModel(object):
 
     
 class Preprocessor:
-    # @staticmethod
-    # def register_session_scoped_action(name:str, user_scope_function, session_scope_function):
-    #     scoped_actions.append(CutOffAfterPremium(name, user_scope_function, session_scope_function))
-
-    mlb = MultiLabelBinarizer(sparse_output=True)
-    lb = LabelBinarizer()
-    
-    # TODO: add interaction = month*hour - cyclic dependencies
+    mlb_genre = MultiLabelBinarizer(sparse_output=True)
+    lb_city = LabelBinarizer()
 
     @staticmethod
     def preprocess_scoped(
         sessions_df: pd.DataFrame, scoped_actions: List[ScopedAction] = None
     ):
-        # problem with static class - this cant be class property or default argumentent value
         scoped_actions = (
             [CutOffAfterPremium(), GetAdsTime(), AdsFavRatio()]
             if scoped_actions is None
@@ -174,9 +167,9 @@ class Preprocessor:
         df.sort_values(by=column_name, inplace=True)
         return df.join(
             pd.DataFrame(
-                Preprocessor.lb.fit_transform(df.pop(column_name)),
+                Preprocessor.lb_city.fit_transform(df.pop(column_name)),
                 index=df.index,
-                columns=Preprocessor.lb.classes_,
+                columns=Preprocessor.lb_city.classes_,
             )
         )
         
@@ -185,28 +178,26 @@ class Preprocessor:
         df.sort_values(by=column_name, inplace=True)
         return df.join(
             pd.DataFrame.sparse.from_spmatrix(
-                Preprocessor.mlb.fit_transform(df.pop(column_name)),
+                Preprocessor.mlb_genre.fit_transform(df.pop(column_name)),
                 index=df.index,
-                columns=Preprocessor.mlb.classes_,
+                columns=Preprocessor.mlb_genre.classes_,
             )
         )
         
     @staticmethod
-    def save_binarizers(filenames={"mlb":"./microservice/saved_models/mlb.sav", "lb":"./microservice/saved_models/lb.sav"}):
-        pickle.dump(Preprocessor.mlb, open(filenames["mlb"], "wb"))
-        pickle.dump(Preprocessor.lb, open(filenames["lb"], "wb"))
+    def save_binarizers(filenames={"mlb_genre":"./microservice/saved_models/mlb_genre.sav", "lb_city":"./microservice/saved_models/lb_city.sav"}):
+        pickle.dump(Preprocessor.mlb_genre, open(filenames["mlb_genre"], "wb"))
+        pickle.dump(Preprocessor.lb_city, open(filenames["lb_city"], "wb"))
     
-    # TODO - cities are hard_coded in the final_columns arg
-    # TODO - take them from label binarizer to here 
     @staticmethod
     def run(
         df, 
-        final_columns:list = ['premium_user', 'favourite_genres', 'Gdynia', 'Kraków',
-       'Poznań', 'Radom', 'Szczecin', 'Warszawa', 'Wrocław', 'Ads_ratio',
-       'adds_after_fav_ratio'],
+        final_columns:list = ['premium_user', 'favourite_genres', 
+                              'Ads_ratio', 'adds_after_fav_ratio'],
             ):
         df = Preprocessor.encode_city(df)
-
+        final_columns += list(Preprocessor.lb_city.classes_)
+        
         df = Preprocessor.preprocess_scoped(df)
 
         event_type_count_df = Preprocessor.get_event_type_count_df(df)
@@ -214,7 +205,6 @@ class Preprocessor:
 
         df = df[final_columns]
         
-        # one hot encoding
         df = Preprocessor.encode_genre(df)
         
         df = df.drop_duplicates().reset_index()

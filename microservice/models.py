@@ -26,13 +26,11 @@ class ModelManager:
         self.y_test = None
         self.y_hat = None
 
-    # Shouldn't be in the model
     def prepare_data(self, since=None) :
         logging.info(f"Enter: prepare_data")
         data_paths = {"users_path": "../data_jsonl/users.jsonl", "tracks_path":"../data_jsonl/tracks.jsonl", "artists_path":"../data_jsonl/artists.jsonl", "sessions_path":"../data_jsonl/sessions.jsonl"}
         data_model = DataModel(load_data=True, data_paths_dict=data_paths)
         data_df = data_model.get_merged_dfs(since=since)
-        # TODO:check why since works?
         self.X_train, self.X_test, self.y_train, self.y_test = Preprocessor(data_df).transform(split=True)
         
         return self

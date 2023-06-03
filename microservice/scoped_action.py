@@ -3,11 +3,6 @@ import numpy as np
 
 # Abstract class
 class ScopedAction:
-    # Would be best in maintanance if w e had context for each scope - session, user, ...
-    # class Context:
-    #     def __init__(self, data:list=None) -> None:
-    #         self.data = data
-            
     def __init__( self ) -> None:
         self.session_scope_data = dict()
         self.user_scope_data = dict()

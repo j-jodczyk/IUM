@@ -13,7 +13,3 @@ class FastReader(object):
         df_final = pd.json_normalize(df_inter['json_element'].apply(json.loads))
         
         return df_final
-    
-# data = FastReader.read_json("../../data_jsonl/sessions.jsonl")
-# print(data.info())
-# print(data)
