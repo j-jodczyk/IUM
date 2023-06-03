@@ -20,7 +20,7 @@ def config_logging(name: int) -> None:
     )
     
 
-def config_seed(seed:int=42):
+def config_seed(seed:int=18):
     np.random.seed(seed)
     random.seed(seed)
 

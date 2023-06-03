@@ -80,7 +80,6 @@ class ParametersSearchLoop (object):
         self.estimator_params.update(get_tree())
         self.estimator_params.update(get_forest())
 
-# TOOD: unify between this and modelmanager
     def prepare_data(self, 
             data_paths = {"users_path": "./data_jsonl/users.jsonl", "tracks_path":"./data_jsonl/tracks.jsonl", "artists_path":"./data_jsonl/artists.jsonl", "sessions_path":"./data_jsonl/sessions.jsonl"}
                     ):
@@ -92,7 +91,6 @@ class ParametersSearchLoop (object):
 
     def grid_generator(self):
         for model_manager, params in self.estimator_params.items():
-            # model_manager can be passed directly to the grid, so it will log values and update accuracy if set up correctly, but due to time consumption it is not configured that way 
             grid = HalvingRandomSearchCV(model_manager.model, params, scoring=self.scoring, cv=ShuffleSplit(
                                     test_size=0.3, n_splits=5, random_state=42),
                                     n_jobs=-1, n_candidates="exhaust", factor=3,
@@ -109,5 +107,5 @@ class ParametersSearchLoop (object):
                 
 if __name__ == '__main__':
     grid = ParametersSearchLoop()
-    for grid_params in grid.grid_generator():
-        print(f"Params: {grid_params[0]}, \t score: {grid_params[1]}")
+    for params, score, estimator in grid.grid_generator():
+        ModelManager(estimator).save_model_to_file(filename=f"./microservice/saved_models/{f'{(type(estimator).__name__).lower()}_{score:.3f}'.replace('.','_')}.sav")

@@ -1,3 +1,4 @@
+import inspect
 import pandas as pd
 from sklearn.metrics import accuracy_score, classification_report
 from sklearn.neighbors import KNeighborsClassifier
@@ -18,7 +19,7 @@ class NaiveModel:
 
 class ModelManager:
     def __init__(self, model=KNeighborsClassifier):
-        self.model = model()
+        self.model = model() if inspect.isclass(model) else model
         self.X_train = None
         self.X_test = None
         self.y_train = None
@@ -37,33 +38,24 @@ class ModelManager:
         return self
 
     def fit_data(self, X_train, Y_train):
-        logging.info(f"Enter: fit_data")
         self.y_hat = None
         self.model.fit(X_train, Y_train)
         return self
 
     def fit(self, X_train, Y_train):
-        logging.info(f"Enter: fit_data")
-        self.y_hat = None
-        self.model.fit(X_train, Y_train)
-        return self
+        return self.fit_data(X_train, Y_train)
 
     def fit_data(self):
-        logging.info(f"Enter: fit_data with \tX_train len: {len(self.X_train)} \ty_train len: {len(self.y_train)}")
         self.y_hat = None
         self.model.fit(self.X_train, self.y_train)
         return self
 
     def predict(self, X_test):
-        logging.info(f"Enter: predict with \tX_test len: {len(X_test)}")
         self.y_hat = self.model.predict(X_test)
-        logging.info(f"Left: predict with \ty_hat len: {len(self.y_hat)}")
         return self.y_hat
 
     def predict(self):
-        logging.info(f"Enter: predict with \tX_test len: {len(self.X_test)}")
         self.y_hat = self.model.predict(self.X_test)
-        logging.info(f"Left: predict with \ty_hat len: {len(self.y_hat)}")
         return self.y_hat
 
     def accuracy(self):
@@ -77,7 +69,8 @@ class ModelManager:
         return classification_report(self.y_test, self.y_hat)
 
     def save_model_to_file(self, filename):
-        pickle.dump(self.model, open(filename, "wb"))
+        with open(filename, "wb") as f:
+            pickle.dump(self.model, f)
 
     def get_params(self):
         return self.model.get_params()
